@@ -1,4 +1,4 @@
-//! A function for lexing `&str`s into iterators of `Token`s.
+//! A function for lexing `&str`s into iterators of [`Token`]s.
 
 #[doc(hidden)]
 mod token {
@@ -34,7 +34,7 @@ mod token {
 
 pub use token::Token;
 
-/// Lexes a `&str` into an iterator of `Result<Token, usize>`.
+/// Lexes a `&str` into an iterator of [`Result<Token, usize>`](Token).
 ///
 /// An `Ok` value is a lexed token, and an `Err` value is the index of a character that could not be
 /// lexed into a token.
