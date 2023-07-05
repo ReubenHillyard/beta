@@ -1,13 +1,28 @@
 //! Functions for parsing [`Token`]s into concrete syntax tree elements.
 
 use crate::lexer::Token;
-use crate::parser::cst::Expression;
+use crate::parser::cst::*;
 use itertools::{Either, Itertools};
 use std::string::ParseError;
 
 /// Types for concrete syntax tree elements.
 pub mod cst {
     use std::fmt;
+
+    /// Represents the concrete syntax of a file.
+    #[derive(Debug)]
+    pub struct File<'a> {
+        pub declarations: Vec<Declaration<'a>>,
+    }
+
+    /// Represents the concrete syntax of a declaration.
+    #[derive(Debug)]
+    pub enum Declaration<'a> {
+        LetDeclaration {
+            name: &'a str,
+            value: Expression<'a>,
+        },
+    }
 
     /// Represents the concrete syntax of an expression.
     #[derive(Debug)]
@@ -75,24 +90,28 @@ mod grammar {
                         ret_val: Box::new(ret_val)
                     }
                 })
-                / ([Token::LParen] [Token::Identifier(param)] [Token::Colon] param_type:expr() [Token::RParen] [Token::DoubleArrow] ret_val:expr() {
+                / ([Token::LParen] [Token::Identifier(param)] [Token::Colon]
+                    param_type:expr() [Token::RParen] [Token::DoubleArrow] ret_val:expr()
+                {
                     Expression::Lambda {
                         param,
                         param_type: Some(Box::new(param_type)),
                         ret_val: Box::new(ret_val)
                     }
                 })
-                / ([Token::LParen] [Token::Identifier(tparam)] [Token::Colon] tparam_type:expr() [Token::RParen] [Token::SingleArrow] ret_type:expr() {
+                / ([Token::LParen] [Token::Identifier(tparam)] [Token::Colon]
+                    tparam_type:expr() [Token::RParen] [Token::SingleArrow] ret_type:expr()
+                {
                     Expression::PiType {
                         tparam,
                         tparam_type: Box::new(tparam_type),
                         ret_type: Box::new(ret_type)
                     }
                 })
-                / (e:core_expr() [Token::As] t:core_expr() {
+                / (expr:core_expr() [Token::As] type_:core_expr() {
                     Expression::Annotation {
-                        expr: Box::new(e),
-                        type_: Box::new(t),
+                        expr: Box::new(expr),
+                        type_: Box::new(type_),
                     }
                 })
                 / (e:core_expr() { e })
@@ -112,6 +131,24 @@ mod grammar {
 
             pub rule expression() -> Expression<'a>
                 = expr()
+
+            rule decl() -> Declaration<'a>
+                = [Token::Let] [Token::Identifier(name)] [Token::Equals]
+                    value:expr() [Token::Semicolon]
+                {
+                    Declaration::LetDeclaration {
+                        name,
+                        value
+                    }
+                }
+
+            pub rule file() -> File<'a>
+                = declarations:decl()* {
+                    File {
+                        declarations
+                    }
+                }
+
         }
     }
 }
@@ -121,6 +158,13 @@ pub fn parse_as_expression<'a>(
     tokens: &'a [Token<'a>],
 ) -> Result<Expression<'a>, peg::error::ParseError<usize>> {
     grammar::parser::expression(tokens)
+}
+
+/// Parses a slice of [`Token`]s into an [`File`] or fails.
+pub fn parse_as_file<'a>(
+    tokens: &'a [Token<'a>],
+) -> Result<File<'a>, peg::error::ParseError<usize>> {
+    grammar::parser::file(tokens)
 }
 
 /// Allows the user to enter a line of text, and prints the result of parsing it.

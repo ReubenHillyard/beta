@@ -9,16 +9,20 @@ mod token {
     #[logos(skip r"//[^\n]*")]
     #[logos(skip r"/[*]([^*]*[*]+[^*/])*[^*]*[*]+/")]
     pub enum Token<'a> {
-        #[token("Type")]
-        Type,
         #[token("as")]
         As,
+        #[token("let")]
+        Let,
+        #[token("Type")]
+        Type,
         #[regex("[a-zA-Z_][a-zA-Z_0-9]*")]
         Identifier(&'a str),
         #[token("(")]
         LParen,
         #[token(")")]
         RParen,
+        #[token("=")]
+        Equals,
         #[token(",")]
         Comma,
         #[token(":")]
