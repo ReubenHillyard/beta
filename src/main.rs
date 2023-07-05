@@ -10,5 +10,5 @@ pub mod parser;
 pub mod typing;
 
 pub fn main() {
-    lexer::test_lexer()
+    parser::test_parser()
 }
