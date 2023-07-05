@@ -9,17 +9,6 @@ pub mod lexer;
 pub mod parser;
 pub mod typing;
 
-fn test_lexer() {
-    let mut line = String::new();
-    loop {
-        println!("\n\n");
-        line.clear();
-        std::io::stdin().read_line(&mut line).unwrap();
-        let tokens = lexer::lex(&line).collect::<Result<Vec<_>, _>>();
-        println!("{:?}", tokens);
-    }
-}
-
 pub fn main() {
-    test_lexer()
+    lexer::test_lexer()
 }

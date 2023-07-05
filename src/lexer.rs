@@ -77,3 +77,16 @@ mod tests {
         assert!(lex(r"Type % -> Type").eq([Ok(Type), Err(5), Ok(SingleArrow), Ok(Type)]));
     }
 }
+
+/// Allows the user to enter a line of text, and prints the result of lexing it.
+#[doc(hidden)]
+pub(crate) fn test_lexer() {
+    let mut line = String::new();
+    loop {
+        println!("\n\n");
+        std::io::stdin().read_line(&mut line).unwrap();
+        let tokens = lex(&line).collect::<Vec<_>>();
+        println!("{:?}", tokens);
+        line.clear();
+    }
+}
