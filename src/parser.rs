@@ -1,4 +1,4 @@
-//! Functions for parsing [`Token`]s into concrete syntax tree elements.
+//! Functions for parsing [`Token`]s into concrete syntax.
 
 use crate::lexer::Token;
 use crate::parser::cst::*;
