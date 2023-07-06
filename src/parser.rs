@@ -24,7 +24,7 @@ pub mod cst {
         },
     }
 
-    /// Represents the concrete syntax of an expression.
+    /// The concrete syntax of an expression.
     #[derive(Debug)]
     pub enum Expression<'a> {
         Variable(&'a str),
