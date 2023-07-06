@@ -32,7 +32,10 @@ pub enum Value<'a> {
 #[derive(Clone)]
 pub enum Neutral<'a> {
     Variable(VVariable<'a>),
-    Application { func: Box<Neutral<'a>>, arg: Box<Value<'a>> },
+    Application {
+        func: Box<Neutral<'a>>,
+        arg: Box<Value<'a>>,
+    },
 }
 
 #[derive(Clone)]

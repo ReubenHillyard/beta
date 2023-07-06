@@ -10,5 +10,5 @@ pub mod parser;
 pub mod typing;
 
 pub fn main() {
-    parser::test_parser()
+    typing::ast::test_abstract()
 }

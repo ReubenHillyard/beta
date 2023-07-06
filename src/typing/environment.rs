@@ -1,8 +1,8 @@
 //! Types representing the environments where typing or evaluation take place.
 
+use crate::typing::ast::Expression;
 use crate::typing::value::{Type, TypedValue, Value};
 use std::collections::HashMap;
-use crate::typing::ast::Expression;
 
 pub struct Definitions<'a>(HashMap<&'a str, TypedValue<'a>>);
 
