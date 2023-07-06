@@ -81,12 +81,14 @@ impl fmt::Display for Expression<'_> {
     }
 }
 
+/// An error regarding the use of concrete names.
 #[derive(Debug)]
 pub enum NameError<'a> {
     DuplicateGlobal(&'a str, &'a str),
     NotFound(&'a str),
 }
 
+/// A list of names, used when the types in the context are immaterial.
 enum Names<'a, 'b> {
     Empty,
     Extend {
@@ -95,6 +97,7 @@ enum Names<'a, 'b> {
     },
 }
 
+/// Converts the concrete syntax of a variable to abstract syntax.
 fn abstract_variable<'a>(
     globals: &HashMap<&'a str, Expression<'a>>,
     names: &Names<'a, '_>,
@@ -120,6 +123,7 @@ fn abstract_variable<'a>(
     }
 }
 
+/// Converts the concrete syntax of an expression to abstract syntax.
 fn abstract_expression<'a>(
     globals: &HashMap<&'a str, Expression<'a>>,
     names: &Names<'a, '_>,
@@ -249,7 +253,7 @@ pub fn abstract_file<'a>(file: &cst::File<'a>) -> Result<File<'a>, Vec<NameError
     }
 }
 
-/// Allows the user to enter a line of text, and prints the result of parsing it.
+/// Allows the user to enter a line of text, and prints its abstract syntax.
 #[doc(hidden)]
 pub(crate) fn test_abstract() {
     use crate::lexer::lex;

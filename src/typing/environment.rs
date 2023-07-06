@@ -4,6 +4,7 @@ use crate::typing::ast::Expression;
 use crate::typing::value::{Type, TypedValue, Value};
 use std::collections::HashMap;
 
+/// A record of all global values.
 pub struct Definitions<'a>(HashMap<&'a str, TypedValue<'a>>);
 
 enum ContextInner<'a> {
@@ -14,6 +15,7 @@ enum ContextInner<'a> {
     },
 }
 
+/// A typing context.
 pub struct Context<'a>(ContextInner<'a>);
 
 #[derive(Clone)]
@@ -27,8 +29,10 @@ enum EnvironmentInner<'a> {
     },
 }
 
+/// An evaluation environment.
 pub struct Environment<'a>(EnvironmentInner<'a>);
 
+/// A value which depends on arguments.
 #[derive(Clone)]
 pub struct Closure<'a> {
     env: FlatEnvironment<'a>,

@@ -2,6 +2,7 @@
 
 use crate::typing::environment::Closure;
 
+/// The position of a bound variable, counting from the left of the context.
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Level {
     level: usize,
@@ -14,6 +15,7 @@ pub enum VVariable<'a> {
     Local(Level),
 }
 
+/// The result of a computation.
 #[derive(Clone)]
 pub enum Value<'a> {
     PiType {
@@ -29,6 +31,7 @@ pub enum Value<'a> {
     },
 }
 
+/// The record of elimination forms applied to a free variable.
 #[derive(Clone)]
 pub enum Neutral<'a> {
     Variable(VVariable<'a>),
@@ -38,9 +41,11 @@ pub enum Neutral<'a> {
     },
 }
 
+/// A value which is known to be a type.
 #[derive(Clone)]
 pub struct Type<'a>(Value<'a>);
 
+/// A pair of a type and a value of that type.
 pub struct TypedValue<'a> {
     type_: Type<'a>,
     value: Value<'a>,
