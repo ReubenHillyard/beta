@@ -14,6 +14,7 @@ pub enum EVariable<'a> {
 }
 
 /// The abstract syntax of an expression.
+#[derive(Clone)]
 pub enum Expression<'a> {
     Variable(EVariable<'a>),
     PiType {
