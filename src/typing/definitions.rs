@@ -9,4 +9,7 @@ impl<'a> Definitions<'a> {
     pub fn lookup(&self, name: &'a str) -> &TypedValue<'a> {
         &self.0[name]
     }
+    pub fn insert(&mut self, name: &'a str, typed_value: TypedValue<'a>) {
+        self.0.insert(name, typed_value);
+    }
 }

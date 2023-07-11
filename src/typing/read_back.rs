@@ -1,13 +1,11 @@
 //! Functions for reading back [`Value`]s into [`Expression`]s in normal form.
 
 use crate::typing::ast::Expression;
-use crate::typing::environment::abstraction::abstract_expression_empty;
-use crate::typing::environments::{Context, Definitions, Environment};
+use crate::typing::environments::{Context, Definitions};
 use crate::typing::value::{Neutral, Type, Value};
-use itertools::{Either, Itertools};
 
 pub use crate::typing::environment::context::vv_to_ev;
-use crate::typing::evaluation::{do_apply, evaluate};
+use crate::typing::evaluation::do_apply;
 
 /// Reads back a [`Type`]d [`Value`] to an [`Expression`] in beta-normal, eta-long form.
 pub fn read_back_typed<'a>(
@@ -92,52 +90,5 @@ pub fn read_back_neutral<'a>(
             func: Box::new(read_back_neutral(defs, ctx, func)),
             arg: Box::new(read_back_typed(defs, ctx, arg.get_value(), arg.get_type())),
         },
-    }
-}
-
-/// Allows the user to enter a line of text, and prints its abstract syntax.
-#[doc(hidden)]
-pub(crate) fn test_read_back() {
-    use crate::lexer::lex;
-    let mut line = String::new();
-    loop {
-        println!("\n\n");
-        std::io::stdin().read_line(&mut line).unwrap();
-        let tokens = lex(&line).collect::<Vec<_>>();
-        let (tokens, errors): (Vec<_>, Vec<_>) = tokens.into_iter().partition_map(|t| match t {
-            Ok(token) => Either::Left(token),
-            Err(error) => Either::Right(error),
-        });
-        if errors.is_empty() {
-            let expr = crate::parser::parse_as_expression(&tokens);
-            match expr {
-                Ok(expr) => {
-                    println!("expression: {}\n", expr);
-                    let expr = abstract_expression_empty(&expr);
-                    match expr {
-                        Ok(expr) => {
-                            println!("abstracted: {}\n", expr);
-                            let value =
-                                evaluate(&Definitions::default(), &Environment::EMPTY, &expr);
-                            println!("evaluated: {:?}\n", value);
-                            println!(
-                                "read back: {}\n",
-                                read_back_typed(
-                                    &Definitions::default(),
-                                    &Context::EMPTY,
-                                    &value,
-                                    &Type::UNIVERSE,
-                                )
-                            )
-                        }
-                        Err(errors) => println!("name errors: {:?}", errors),
-                    }
-                }
-                Err(error) => println!("parse error: {}", error),
-            }
-        } else {
-            println!("lexing errors: {:?}", errors);
-        }
-        line.clear();
     }
 }

@@ -2,7 +2,6 @@
 
 use crate::lexer::Token;
 use crate::parser::cst::*;
-use itertools::{Either, Itertools};
 
 /// Types for concrete syntax tree elements.
 pub mod cst {
@@ -164,30 +163,4 @@ pub fn parse_as_file<'a>(
     tokens: &'a [Token<'a>],
 ) -> Result<File<'a>, peg::error::ParseError<usize>> {
     grammar::parser::file(tokens)
-}
-
-/// Allows the user to enter a line of text, and prints the result of parsing it.
-#[doc(hidden)]
-pub(crate) fn test_parser() {
-    use crate::lexer::lex;
-    let mut line = String::new();
-    loop {
-        println!("\n\n");
-        std::io::stdin().read_line(&mut line).unwrap();
-        let tokens = lex(&line).collect::<Vec<_>>();
-        let (tokens, errors): (Vec<_>, Vec<_>) = tokens.into_iter().partition_map(|t| match t {
-            Ok(token) => Either::Left(token),
-            Err(error) => Either::Right(error),
-        });
-        if errors.is_empty() {
-            let expr = parse_as_expression(&tokens);
-            match expr {
-                Ok(expr) => println!("expression: {}", expr),
-                Err(error) => println!("parse error: {}", error),
-            }
-        } else {
-            println!("lexing errors: {:?}", errors);
-        }
-        line.clear();
-    }
 }

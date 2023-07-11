@@ -4,8 +4,6 @@ pub use crate::typing::environment::abstraction::abstract_file;
 pub use crate::typing::environment::{EVariable, Index};
 use std::fmt;
 
-pub(crate) use crate::typing::environment::abstraction::test_abstract;
-
 /// The abstract syntax of a file.
 #[derive(Debug)]
 pub struct File<'a> {

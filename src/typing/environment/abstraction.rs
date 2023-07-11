@@ -1,7 +1,6 @@
 use crate::parser::cst;
 use crate::typing::ast;
 use crate::typing::ast::{EVariable, Expression, Index, NameError};
-use itertools::{Either, Itertools};
 
 /// A list of names, used when the types in the context are immaterial.
 enum Names<'a, 'b> {
@@ -173,38 +172,5 @@ pub fn abstract_file<'a>(file: &cst::File<'a>) -> Result<ast::File<'a>, Vec<Name
         Ok(ast::File { globals })
     } else {
         Err(errors)
-    }
-}
-
-/// Allows the user to enter a line of text, and prints its abstract syntax.
-#[doc(hidden)]
-pub(crate) fn test_abstract() {
-    use crate::lexer::lex;
-    let mut line = String::new();
-    loop {
-        println!("\n\n");
-        std::io::stdin().read_line(&mut line).unwrap();
-        let tokens = lex(&line).collect::<Vec<_>>();
-        let (tokens, errors): (Vec<_>, Vec<_>) = tokens.into_iter().partition_map(|t| match t {
-            Ok(token) => Either::Left(token),
-            Err(error) => Either::Right(error),
-        });
-        if errors.is_empty() {
-            let expr = crate::parser::parse_as_expression(&tokens);
-            match expr {
-                Ok(expr) => {
-                    println!("expression: {}\n", expr);
-                    let expr = abstract_expression(&Vec::new(), &Names::Empty, &expr);
-                    match expr {
-                        Ok(expr) => println!("abstracted: {}\n", expr),
-                        Err(errors) => println!("name errors: {:?}", errors),
-                    }
-                }
-                Err(error) => println!("parse error: {}", error),
-            }
-        } else {
-            println!("lexing errors: {:?}", errors);
-        }
-        line.clear();
     }
 }
