@@ -1,15 +1,15 @@
 //! Types for representing abstract syntax.
 
-pub use crate::typing::environment::{abstract_file, EVariable, Index};
-use std::collections::HashMap;
+pub use crate::typing::environment::abstraction::abstract_file;
+pub use crate::typing::environment::{EVariable, Index};
 use std::fmt;
 
-pub(crate) use crate::typing::environment::test_abstract;
+pub(crate) use crate::typing::environment::abstraction::test_abstract;
 
 /// The abstract syntax of a file.
 #[derive(Debug)]
 pub struct File<'a> {
-    pub globals: HashMap<&'a str, Expression<'a>>,
+    pub globals: Vec<(&'a str, Expression<'a>)>,
 }
 
 /// The abstract syntax of an expression.

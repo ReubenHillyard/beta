@@ -3,7 +3,6 @@
 use crate::lexer::Token;
 use crate::parser::cst::*;
 use itertools::{Either, Itertools};
-use std::string::ParseError;
 
 /// Types for concrete syntax tree elements.
 pub mod cst {
