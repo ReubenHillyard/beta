@@ -76,7 +76,7 @@ mod detail {
     use crate::typing::equivalence::judgmentally_equal;
     use crate::typing::evaluation::detail::evaluate;
     use crate::typing::read_back::read_back_typed;
-    use crate::typing::value::{Closure, Type, Value};
+    use crate::typing::value::{Closure, Type, TypedValue, Value};
     use crate::typing::TypeError;
 
     pub fn check_type<'a>(
@@ -88,14 +88,17 @@ mod detail {
         use Expression::*;
         match expr {
             Lambda {
-                param_type,
+                param_type: given_param_type,
                 ret_val,
             } => {
-                if let Some(_given_param_type) = param_type {
-                    unimplemented!("cannot yet check type of lambda with given parameter type")
-                };
                 let Value::PiType { param_type, tclosure } = type_.as_value() else {
                     return Err(TypeError::UsedLambdaAsNonPiType(expr.clone(), type_.clone()));
+                };
+                if let Some(given_param_type) = given_param_type {
+                    check_type(defs, ctx, given_param_type, &Type::UNIVERSE)?;
+                    let given_param_type = evaluate(defs, &Environment::from_context(ctx), given_param_type);
+                    let given_param_type = TypedValue::create_typed_value(Type::UNIVERSE, given_param_type);
+                    judgmentally_equal(defs, ctx, &given_param_type, &(**param_type).clone().into_typed_value())?;
                 };
                 let fresh_var = ctx.fresh_var((**param_type).clone());
                 let ret_type = Type::create_type_from_value(tclosure.call(defs, &fresh_var));
