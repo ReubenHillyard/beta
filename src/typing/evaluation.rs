@@ -1,4 +1,4 @@
-//! Functions for evaluating [`Expression`]s to [`Value`]s.
+//! Functions for evaluating [`TypedExpression`]s to [`TypedValue`]s.
 
 use crate::typing::checking::TypedExpression;
 use crate::typing::definitions::Definitions;

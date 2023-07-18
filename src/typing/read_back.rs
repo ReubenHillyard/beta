@@ -1,4 +1,4 @@
-//! Functions for reading back [`Value`]s into [`Expression`]s in normal form.
+//! Functions for reading back [`TypedValue`]s into [`TypedExpression`]s in normal form.
 
 use crate::typing::checking::TypedExpression;
 use crate::typing::environments::{Context, Definitions};
@@ -6,7 +6,7 @@ use crate::typing::value::TypedValue;
 
 pub use crate::typing::environment::context::vv_to_ev;
 
-/// Reads back a [`Type`]d [`Value`] to an [`TypedExpression`] in beta-normal, eta-long form.
+/// Reads back a [`TypedValue`] to a [`TypedExpression`] in beta-normal, eta-long form.
 pub fn read_back_typed<'a>(
     defs: &Definitions<'a>,
     ctx: &Context<'a, '_>,
