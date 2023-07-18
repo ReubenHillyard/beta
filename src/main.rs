@@ -1,15 +1,14 @@
 #![crate_name = "beta"]
-#![allow(unused)]
 
 //! A dependently-typed programming language, aiming to support safe mutable state and a cubical
 //! interpretation of univalence.
 
 use crate::lexer::lex;
 use crate::typing::ast::abstract_file;
+use crate::typing::checking::synth_type;
 use crate::typing::environments::{Context, Definitions, Environment};
 use crate::typing::evaluation::evaluate;
 use crate::typing::read_back::read_back_typed;
-use crate::typing::value::{Type, TypedValue};
 use itertools::{Either, Itertools};
 use std::fs::read_to_string;
 
@@ -19,7 +18,6 @@ pub mod parser;
 pub mod typing;
 
 pub fn main() {
-    println!("for now files may only declare types.\n");
     println!("enter filepath: ");
     let mut path = String::new();
     std::io::stdin().read_line(&mut path).unwrap();
@@ -51,11 +49,25 @@ pub fn main() {
     let mut defs = Definitions::default();
     let env = Environment::EMPTY;
     for (name, expr) in file.globals {
-        let value = evaluate(&defs, &env, &expr);
-        println!(
-            "{name} = {}\n\n",
-            read_back_typed(&defs, &Context::EMPTY, &value, &Type::UNIVERSE)
+        let typed_expr = match synth_type(&defs, &Context::EMPTY, &expr) {
+            Ok(type_) => type_,
+            Err(error) => {
+                println!("type error: {:?}", error);
+                return;
+            }
+        };
+        let value = evaluate(&defs, &env, &typed_expr);
+        let type_expr = read_back_typed(
+            &defs,
+            &Context::EMPTY,
+            &value.get_type().clone().into_typed_value(),
         );
-        defs.insert(name, TypedValue::create_typed_value(Type::UNIVERSE, value));
+        let value_expr = read_back_typed(&defs, &Context::EMPTY, &value);
+        println!(
+            "{name} = {} as {}\n",
+            value_expr.get_expr(),
+            type_expr.get_expr()
+        );
+        defs.insert(name, value);
     }
 }

@@ -153,7 +153,7 @@ mod grammar {
 
 /// Parses a slice of [`Token`]s into an [`Expression`] or fails.
 pub fn parse_as_expression<'a>(
-    tokens: &'a [Token<'a>],
+    tokens: &[Token<'a>],
 ) -> Result<Expression<'a>, peg::error::ParseError<usize>> {
     grammar::parser::expression(tokens)
 }

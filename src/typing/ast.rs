@@ -11,7 +11,7 @@ pub struct File<'a> {
 }
 
 /// The abstract syntax of an expression.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Expression<'a> {
     Variable(EVariable<'a>),
     PiType {

@@ -122,9 +122,9 @@ fn abstract_expression<'a>(
             let expr = abstract_expression(globals, names, expr);
             let type_ = abstract_expression(globals, names, type_);
             match expr {
-                Ok(expr) => Ok(Expression::Application {
-                    func: Box::new(expr),
-                    arg: Box::new(type_?),
+                Ok(expr) => Ok(Expression::Annotation {
+                    expr: Box::new(expr),
+                    type_: Box::new(type_?),
                 }),
                 Err(mut errors) => {
                     if let Err(mut others) = type_ {
@@ -138,6 +138,7 @@ fn abstract_expression<'a>(
 }
 
 /// Converts the concrete syntax of an expression to abstract syntax, in an empty context.
+#[cfg(test)]
 pub(crate) fn abstract_expression_empty<'a>(
     expr: &cst::Expression<'a>,
 ) -> Result<Expression<'a>, Vec<NameError<'a>>> {
