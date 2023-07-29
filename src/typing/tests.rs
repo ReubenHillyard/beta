@@ -73,7 +73,7 @@ fn test_parse_expr() {
         })
     );
     assert_eq!(
-        parse_expr("(A => A) as ((A : Type) -> Type)"),
+        parse_expr("(A => A) as (Type -> Type)"),
         Some(Expression::Annotation {
             expr: Box::new(Expression::Lambda {
                 param_type: Box::new(Expression::Underscore),
