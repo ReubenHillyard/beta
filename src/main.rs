@@ -19,11 +19,11 @@ pub mod parser;
 pub mod typing;
 
 pub fn main() {
-    /*println!("enter filepath: ");
+    println!("enter filepath: ");
     let mut path = String::new();
     std::io::stdin().read_line(&mut path).unwrap();
-    path.pop(); // remove newline character*/
-    let source = read_to_string("test_file.txt").unwrap();
+    path.pop(); // remove newline character
+    let source = read_to_string(path).unwrap();
     let tokens: Vec<_> = lex(&source).collect();
     let (tokens, errors): (Vec<_>, Vec<_>) = tokens.into_iter().partition_map(|t| match t {
         Ok(token) => Either::Left(token),
