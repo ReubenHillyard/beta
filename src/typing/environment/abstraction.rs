@@ -45,6 +45,7 @@ fn abstract_expression<'a>(
 ) -> Result<Expression<'a>, Vec<NameError<'a>>> {
     use cst::Expression::*;
     match expr {
+        Question => Ok(Expression::Question),
         Variable(name) => match abstract_variable(globals, names, name, 0) {
             Ok(ev) => Ok(Expression::Variable(ev)),
             Err(ne) => Err(vec![ne]),
@@ -78,9 +79,10 @@ fn abstract_expression<'a>(
             param_type,
             ret_val,
         } => {
-            let param_type = param_type
-                .as_ref()
-                .map(|param_type| abstract_expression(globals, names, param_type));
+            let param_type = match param_type {
+                Some(param_type) => abstract_expression(globals, names, param_type),
+                None => Ok(Expression::Question),
+            };
             let names = &Names::Extend {
                 parent: names,
                 name: param,
@@ -88,11 +90,11 @@ fn abstract_expression<'a>(
             let ret_val = abstract_expression(globals, names, ret_val);
             match ret_val {
                 Ok(ret_val) => Ok(Expression::Lambda {
-                    param_type: param_type.transpose()?.map(Box::new),
+                    param_type: Box::new(param_type?),
                     ret_val: Box::new(ret_val),
                 }),
                 Err(mut others) => {
-                    if let Some(Err(mut errors)) = param_type {
+                    if let Err(mut errors) = param_type {
                         errors.append(&mut others);
                         Err(errors)
                     } else {
