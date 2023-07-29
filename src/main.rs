@@ -59,7 +59,7 @@ pub fn main() {
             }
         };
         if !defs.all_metas_defined() {
-            println!("could not deduce values for some meta-variables in {name}");
+            println!("could not deduce values for some meta-variables in `{name}`");
             return;
         }
         let value = evaluate(&defs, &env, &typed_expr);

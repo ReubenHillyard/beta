@@ -7,7 +7,7 @@ enum Names<'a, 'b> {
     Empty,
     Extend {
         parent: &'b Names<'a, 'b>,
-        name: &'a str,
+        name: Option<&'a str>,
     },
 }
 
@@ -28,7 +28,7 @@ fn abstract_variable<'a>(
             }
         }
         Extend { parent, name } => {
-            if id == name {
+            if Some(id) == name {
                 Ok(EVariable::Local(Index { index: offset }))
             } else {
                 abstract_variable(globals, parent, id, offset + 1)
@@ -45,7 +45,7 @@ fn abstract_expression<'a>(
 ) -> Result<Expression<'a>, Vec<NameError<'a>>> {
     use cst::Expression::*;
     match expr {
-        Question => Ok(Expression::Question),
+        Underscore => Ok(Expression::Underscore),
         Variable(name) => match abstract_variable(globals, names, name, 0) {
             Ok(ev) => Ok(Expression::Variable(ev)),
             Err(ne) => Err(vec![ne]),
@@ -58,7 +58,7 @@ fn abstract_expression<'a>(
             let tparam_type = abstract_expression(globals, names, tparam_type);
             let names = &Names::Extend {
                 parent: names,
-                name: tparam,
+                name: *tparam,
             };
             let ret_type = abstract_expression(globals, names, ret_type);
             match tparam_type {
@@ -81,11 +81,11 @@ fn abstract_expression<'a>(
         } => {
             let param_type = match param_type {
                 Some(param_type) => abstract_expression(globals, names, param_type),
-                None => Ok(Expression::Question),
+                None => Ok(Expression::Underscore),
             };
             let names = &Names::Extend {
                 parent: names,
-                name: param,
+                name: *param,
             };
             let ret_val = abstract_expression(globals, names, ret_val);
             match ret_val {

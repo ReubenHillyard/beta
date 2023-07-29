@@ -9,8 +9,8 @@ mod token {
     #[logos(skip r"//[^\n]*")]
     #[logos(skip r"/[*]([^*]*[*]+[^*/])*[^*]*[*]+/")]
     pub enum Token<'a> {
-        #[token("?")]
-        Question,
+        #[token("_")]
+        Underscore,
         #[token("as")]
         As,
         #[token("let")]

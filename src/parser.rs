@@ -25,15 +25,15 @@ pub mod cst {
     /// The concrete syntax of an expression.
     #[derive(Debug)]
     pub enum Expression<'a> {
-        Question,
+        Underscore,
         Variable(&'a str),
         PiType {
-            tparam: &'a str,
+            tparam: Option<&'a str>,
             tparam_type: Box<Expression<'a>>,
             ret_type: Box<Expression<'a>>,
         },
         Lambda {
-            param: &'a str,
+            param: Option<&'a str>,
             param_type: Option<Box<Expression<'a>>>,
             ret_val: Box<Expression<'a>>,
         },
@@ -52,21 +52,29 @@ pub mod cst {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             use Expression::*;
             match self {
-                Question => write!(f, "?"),
+                Underscore => write!(f, "_"),
                 Variable(id) => id.fmt(f),
                 PiType {
                     tparam,
                     tparam_type,
                     ret_type,
-                } => write!(f, "({} : {}) -> {}", tparam, tparam_type, ret_type),
+                } => {
+                    let tparam = tparam.unwrap_or("_");
+                    write!(f, "({} : {}) -> {}", tparam, tparam_type, ret_type)
+                }
                 Lambda {
                     param,
                     param_type,
                     ret_val,
-                } => match param_type {
-                    Some(param_type) => write!(f, "({} : {}) => {}", param, param_type, ret_val),
-                    None => write!(f, "{} => {}", param, ret_val),
-                },
+                } => {
+                    let param = param.unwrap_or("_");
+                    match param_type {
+                        Some(param_type) => {
+                            write!(f, "({} : {}) => {}", param, param_type, ret_val)
+                        }
+                        None => write!(f, "{} => {}", param, ret_val),
+                    }
+                }
                 Application { func, arg } => write!(f, "({})({})", func, arg),
                 Universe => write!(f, "Type"),
                 Annotation { expr, type_ } => write!(f, "({} as {})", expr, type_),
@@ -82,15 +90,18 @@ mod grammar {
 
     peg::parser! {
         pub grammar parser<'a>() for [Token<'a>] {
+            rule opt_id() -> Option<&'a str>
+                = [Token::Identifier(id)] { Some(id) }
+                / [Token::Underscore] { None }
             rule expr() -> Expression<'a>
-                = ([Token::Identifier(param)] [Token::DoubleArrow] ret_val:expr() {
+                = (param:opt_id() [Token::DoubleArrow] ret_val:expr() {
                     Expression::Lambda {
                         param,
                         param_type: None,
                         ret_val: Box::new(ret_val)
                     }
                 })
-                / ([Token::LParen] [Token::Identifier(param)] [Token::Colon]
+                / ([Token::LParen] param:opt_id() [Token::Colon]
                     param_type:expr() [Token::RParen] [Token::DoubleArrow] ret_val:expr()
                 {
                     Expression::Lambda {
@@ -99,7 +110,7 @@ mod grammar {
                         ret_val: Box::new(ret_val)
                     }
                 })
-                / ([Token::LParen] [Token::Identifier(tparam)] [Token::Colon]
+                / ([Token::LParen] tparam:opt_id() [Token::Colon]
                     tparam_type:expr() [Token::RParen] [Token::SingleArrow] ret_type:expr()
                 {
                     Expression::PiType {
@@ -123,10 +134,17 @@ mod grammar {
                         arg: Box::new(arg),
                     }
                 }
+                dom:@ [Token::SingleArrow] ran:expr() {
+                    Expression::PiType {
+                        tparam: None,
+                        tparam_type: Box::new(dom),
+                        ret_type: Box::new(ran),
+                    }
+                }
                 --
                 [Token::LParen] e:expr() [Token::RParen] { e }
                 [Token::Type] { Expression::Universe }
-                [Token::Question] { Expression::Question }
+                [Token::Underscore] { Expression::Underscore }
                 [Token::Identifier(id)] { Expression::Variable(id) }
             }
 

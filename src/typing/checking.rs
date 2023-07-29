@@ -100,7 +100,7 @@ pub fn check_type<'a>(
 ) -> super::Result<'a, TypedExpression<'a>> {
     use Expression::*;
     match (expr, type_.as_value()) {
-        (Question, _) => Ok(defs.add_meta(ctx, type_.clone())),
+        (Underscore, _) => Ok(defs.add_meta(ctx, type_.clone())),
         (
             Lambda {
                 param_type: given_param_type,
@@ -154,7 +154,7 @@ pub fn synth_type<'a>(
 ) -> super::Result<'a, TypedExpression<'a>> {
     use Expression::*;
     match expr {
-        Question => {
+        Underscore => {
             let type_ = defs.add_meta(ctx, Type::UNIVERSE);
             let type_ = evaluate(defs, &Environment::from_context(ctx), &type_);
             let type_ = Type::create_type_from_value(type_);

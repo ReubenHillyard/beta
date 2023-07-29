@@ -13,7 +13,7 @@ pub struct File<'a> {
 /// The abstract syntax of an expression.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Expression<'a> {
-    Question,
+    Underscore,
     Variable(EVariable<'a>),
     PiType {
         tparam_type: Box<Expression<'a>>,
@@ -38,7 +38,7 @@ impl fmt::Display for Expression<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use Expression::*;
         match self {
-            Question => write!(f, "?"),
+            Underscore => write!(f, "?"),
             Variable(id) => id.fmt(f),
             PiType {
                 tparam_type,
