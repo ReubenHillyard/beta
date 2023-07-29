@@ -1,105 +1,77 @@
 //! Functions for reading back [`TypedValue`]s into [`TypedExpression`]s in normal form.
 
-use crate::typing::checking::TypedExpression;
-use crate::typing::environments::{Context, Definitions};
-use crate::typing::value::TypedValue;
-
 pub use crate::typing::environment::context::vv_to_ev;
 
-/// Reads back a [`TypedValue`] to a [`TypedExpression`] in beta-normal, eta-long form.
-pub fn read_back_typed<'a>(
+use crate::typing::checking::CoreExpression;
+use crate::typing::definitions::MetaVar;
+use crate::typing::environment::context::vv_to_ev_with_ctx_size;
+use crate::typing::environments::{Context, Definitions};
+use crate::typing::value::{Neutral, VVariable, Value};
+
+pub fn read_back_value<'a>(
     defs: &Definitions<'a>,
-    ctx: &Context<'a, '_>,
-    val: &TypedValue<'a>,
-) -> TypedExpression<'a> {
-    TypedExpression::create_typed_expression(
-        detail::read_back_typed(defs, ctx, val),
-        val.get_type().clone(),
-    )
+    ctx_size: usize,
+    value: &Value<'a>,
+) -> CoreExpression<'a> {
+    use Value::*;
+    match value {
+        PiType {
+            param_type,
+            tclosure,
+        } => {
+            let fresh_var = Context::fresh_var_from_ctx_size(ctx_size);
+            let ret_type = tclosure.call(defs, &fresh_var);
+            CoreExpression::PiType {
+                tparam_type: Box::new(read_back_value(defs, ctx_size, param_type.as_value())),
+                ret_type: Box::new(read_back_value(defs, ctx_size + 1, &ret_type)),
+            }
+        }
+        Lambda { closure } => {
+            let fresh_var = Context::fresh_var_from_ctx_size(ctx_size);
+            let ret_val = closure.call(defs, &fresh_var);
+            CoreExpression::Lambda {
+                ret_val: Box::new(read_back_value(defs, ctx_size + 1, &ret_val)),
+            }
+        }
+        Universe => CoreExpression::Universe,
+        Neutral(neu) => read_back_neutral(defs, ctx_size, neu),
+        MetaNeutral(neu) => read_back_neutral(defs, ctx_size, neu),
+    }
 }
 
-mod detail {
-    use crate::typing::ast::Expression;
-    use crate::typing::environments::{Context, Definitions};
-    use crate::typing::evaluation::do_apply;
-    use crate::typing::read_back::vv_to_ev;
-    use crate::typing::value::{Neutral, Type, TypedValue, Value};
+trait ValidVarT<'a> {
+    fn read_back(&self, defs: &Definitions<'a>, ctx_size: usize) -> CoreExpression<'a>;
+}
 
-    pub fn read_back_typed<'a>(
-        defs: &Definitions<'a>,
-        ctx: &Context<'a, '_>,
-        val: &TypedValue<'a>,
-    ) -> Expression<'a> {
-        let out = match val.get_type().as_value() {
-            Value::PiType {
-                param_type,
-                tclosure,
-            } => {
-                let fresh_var = ctx.fresh_var((**param_type).clone());
-                let ret_val = do_apply(defs, val.get_value(), &fresh_var);
-                let ret_type = Type::create_type_from_value(tclosure.call(defs, &fresh_var));
-                let ret_val = read_back_typed(
-                    defs,
-                    &ctx.extend(param_type),
-                    &TypedValue::create_typed_value(ret_type, ret_val),
-                );
-                Expression::Lambda {
-                    param_type: None,
-                    ret_val: Box::new(ret_val),
-                }
+impl<'a> ValidVarT<'a> for MetaVar {
+    fn read_back(&self, defs: &Definitions<'a>, ctx_size: usize) -> CoreExpression<'a> {
+        let out = defs.lookup_meta(*self);
+        if let Value::MetaNeutral(Neutral::Variable(mv)) = out {
+            if mv == *self {
+                return CoreExpression::MetaVariable(mv);
             }
-            Value::Universe => match val.get_value() {
-                Value::PiType {
-                    param_type,
-                    tclosure,
-                } => {
-                    let fresh_var = ctx.fresh_var((**param_type).clone());
-                    let ret_type = Type::create_type_from_value(tclosure.call(defs, &fresh_var));
-                    let ret_type = read_back_typed(
-                        defs,
-                        &ctx.extend(param_type),
-                        &ret_type.into_typed_value(),
-                    );
-                    let tparam_type =
-                        read_back_typed(defs, ctx, &param_type.clone().into_typed_value());
-                    Expression::PiType {
-                        tparam_type: Box::new(tparam_type),
-                        ret_type: Box::new(ret_type),
-                    }
-                }
-                Value::Universe => Expression::Universe,
-                Value::Neutral { neu, .. } => read_back_neutral(defs, ctx, neu),
-                _ => panic!("Cannot read back `{}` as a type.", val.get_value()),
-            },
-            Value::Neutral { .. } => {
-                let Value::Neutral { neu,.. } = val.get_value() else {
-                    panic!(
-                        "Cannot read back `{}` as a `{}` because it is not of that type.",
-                        val.get_value(), val.get_type().as_value()
-                    )
-                };
-                read_back_neutral(defs, ctx, neu)
-            }
-            _ => panic!(
-                "Cannot read back as `{}` because it is not a type.",
-                val.get_type().as_value()
-            ),
-        };
-        out
-    }
-
-    /// Reads back a [`Neutral`] value to an [`TypedExpression`] in beta-normal, eta-long form.
-    fn read_back_neutral<'a>(
-        defs: &Definitions<'a>,
-        ctx: &Context<'a, '_>,
-        neu: &Neutral<'a>,
-    ) -> Expression<'a> {
-        match neu {
-            Neutral::Variable(vv) => Expression::Variable(vv_to_ev(ctx, *vv)),
-            Neutral::Application { func, arg } => Expression::Application {
-                func: Box::new(read_back_neutral(defs, ctx, func)),
-                arg: Box::new(read_back_typed(defs, ctx, arg)),
-            },
         }
+        read_back_value(defs, ctx_size, &out)
+    }
+}
+
+impl<'a> ValidVarT<'a> for VVariable<'a> {
+    fn read_back(&self, _defs: &Definitions<'a>, ctx_size: usize) -> CoreExpression<'a> {
+        CoreExpression::Variable(vv_to_ev_with_ctx_size(ctx_size, *self))
+    }
+}
+
+fn read_back_neutral<'a, VarT: ValidVarT<'a>>(
+    defs: &Definitions<'a>,
+    ctx_size: usize,
+    neu: &Neutral<'a, VarT>,
+) -> CoreExpression<'a> {
+    use Neutral::*;
+    match neu {
+        Variable(var) => var.read_back(defs, ctx_size),
+        Application { func, arg } => CoreExpression::Application {
+            func: Box::new(read_back_neutral(defs, ctx_size, func)),
+            arg: Box::new(read_back_value(defs, ctx_size, arg)),
+        },
     }
 }

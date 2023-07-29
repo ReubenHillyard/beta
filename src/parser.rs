@@ -25,6 +25,7 @@ pub mod cst {
     /// The concrete syntax of an expression.
     #[derive(Debug)]
     pub enum Expression<'a> {
+        Question,
         Variable(&'a str),
         PiType {
             tparam: &'a str,
@@ -51,6 +52,7 @@ pub mod cst {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             use Expression::*;
             match self {
+                Question => write!(f, "?"),
                 Variable(id) => id.fmt(f),
                 PiType {
                     tparam,
@@ -124,6 +126,7 @@ mod grammar {
                 --
                 [Token::LParen] e:expr() [Token::RParen] { e }
                 [Token::Type] { Expression::Universe }
+                [Token::Question] { Expression::Question }
                 [Token::Identifier(id)] { Expression::Variable(id) }
             }
 

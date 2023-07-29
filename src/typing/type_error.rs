@@ -1,14 +1,14 @@
-use crate::typing::ast::Expression;
-use crate::typing::checking::TypedExpression;
-use crate::typing::value::Type;
+use crate::typing::definitions::MetaVar;
+use crate::typing::value::{Level, Value};
 
 /// The error type for type-synthesis and type-checking.
 #[derive(Debug)]
 pub enum TypeError<'a> {
-    NotJudgmentallyEqual(TypedExpression<'a>, TypedExpression<'a>),
-    UsedLambdaAsNonPiType(Expression<'a>, Type<'a>),
-    CantDeduceLambdaParamType(Expression<'a>),
-    CantCallNonFunction(Expression<'a>),
+    FailedOccursCheck(MetaVar),
+    NonLevelInSpine(Value<'a>),
+    LevelOutOfScope(Level),
+    CantUnifyDifferentHeads,
+    RepeatLevelInSpine(Level),
 }
 
 /// A specialised result type for type-synthesis and type-checking.

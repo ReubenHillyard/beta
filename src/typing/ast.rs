@@ -13,13 +13,14 @@ pub struct File<'a> {
 /// The abstract syntax of an expression.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Expression<'a> {
+    Question,
     Variable(EVariable<'a>),
     PiType {
         tparam_type: Box<Expression<'a>>,
         ret_type: Box<Expression<'a>>,
     },
     Lambda {
-        param_type: Option<Box<Expression<'a>>>,
+        param_type: Box<Expression<'a>>,
         ret_val: Box<Expression<'a>>,
     },
     Application {
@@ -37,6 +38,7 @@ impl fmt::Display for Expression<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use Expression::*;
         match self {
+            Question => write!(f, "?"),
             Variable(id) => id.fmt(f),
             PiType {
                 tparam_type,
@@ -45,10 +47,7 @@ impl fmt::Display for Expression<'_> {
             Lambda {
                 param_type,
                 ret_val,
-            } => match param_type {
-                Some(param_type) => write!(f, "($ : {}) => {}", param_type, ret_val),
-                None => write!(f, "$ => {}", ret_val),
-            },
+            } => write!(f, "($ : {}) => {}", param_type, ret_val),
             Application { func, arg } => write!(f, "({})({})", func, arg),
             Universe => write!(f, "Type"),
             Annotation { expr, type_ } => write!(f, "({} as {})", expr, type_),

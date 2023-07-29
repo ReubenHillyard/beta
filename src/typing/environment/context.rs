@@ -1,6 +1,9 @@
-use crate::typing::ast::{EVariable, Expression, Index};
+use crate::typing::ast::{EVariable, Index};
+use crate::typing::checking::{CoreExpression, TypedExpression};
 use crate::typing::environments::Definitions;
-use crate::typing::value::{Level, Neutral, Type, VVariable, Value};
+use crate::typing::evaluation::detail::evaluate;
+use crate::typing::read_back::read_back_value;
+use crate::typing::value::{Level, Neutral, Type, TypedValue, VVariable, Value};
 use std::fmt;
 
 /// Converts a [`VVariable`] to the corresponding [`EVariable`].
@@ -17,6 +20,19 @@ pub fn vv_to_ev<'a>(ctx: &Context<'a, '_>, vv: VVariable<'a>) -> EVariable<'a> {
     }
 }
 
+/// Converts a [`VVariable`] to the corresponding [`EVariable`].
+pub(crate) fn vv_to_ev_with_ctx_size(ctx_size: usize, vv: VVariable) -> EVariable {
+    match vv {
+        VVariable::Global(name) => EVariable::Global(name),
+        VVariable::Local(level) => EVariable::Local(Index {
+            index: {
+                assert!(level.level < ctx_size, "level out of range");
+                (ctx_size - 1) - level.level
+            },
+        }),
+    }
+}
+
 /// Evaluates an [`EVariable`] to a [`Value`].
 pub(crate) fn evaluate_ev<'a>(
     defs: &Definitions<'a>,
@@ -25,7 +41,7 @@ pub(crate) fn evaluate_ev<'a>(
 ) -> Value<'a> {
     use EVariable::*;
     match ev {
-        Global(name) => defs.lookup(name).get_value().clone(),
+        Global(name) => defs.lookup_global(name).get_value().clone(),
         Local(Index { index }) => {
             use EnvironmentInner::*;
             match env.0 {
@@ -33,11 +49,7 @@ pub(crate) fn evaluate_ev<'a>(
                     let ctx_len = ctx.0.into_iter().count();
                     assert!(*index < ctx_len, "index out of range");
                     let level = (ctx_len - 1) - index;
-                    let type_ = ctx.0.into_iter().nth(*index).unwrap();
-                    Value::Neutral {
-                        type_: Box::new(type_.clone()),
-                        neu: Neutral::Variable(VVariable::Local(Level { level })),
-                    }
+                    Value::Neutral(Neutral::Variable(VVariable::Local(Level { level })))
                 }
                 Extend { parent, val } => {
                     assert!(*index < parent.0.len() + 1, "index out of range");
@@ -53,23 +65,26 @@ pub(crate) fn evaluate_ev<'a>(
     }
 }
 
-/// Determines the [`Type`] of an [`EVariable`].
+/// Creates a [`TypedExpression`] from an [`EVariable`].
 pub fn type_var<'a, 'b>(
     defs: &'b Definitions<'a>,
     ctx: &'b Context<'a, 'b>,
     ev: EVariable<'a>,
-) -> Type<'a> {
+) -> TypedExpression<'a> {
     use EVariable::*;
-    match ev {
-        Global(name) => defs.lookup(name).get_type().clone(),
-        Local(Index { index }) => ctx.0.into_iter().nth(index).unwrap().clone(),
-    }
+    TypedExpression::create_typed_expression(
+        CoreExpression::Variable(ev),
+        match ev {
+            Global(name) => defs.lookup_global(name).get_type().clone(),
+            Local(Index { index }) => ctx.0.into_iter().nth(index).unwrap().clone(),
+        },
+    )
 }
 
 enum ContextInner<'a, 'b> {
     Empty,
     Extend {
-        parent: &'b ContextInner<'a, 'b>,
+        parent: &'b Context<'a, 'b>,
         type_: &'b Type<'a>,
     },
 }
@@ -87,7 +102,7 @@ impl<'a, 'b> Iterator for ContextIterator<'a, 'b> {
         match *self.ptr {
             Empty => None,
             Extend { parent, type_ } => {
-                self.ptr = parent;
+                self.ptr = &parent.0;
                 Some(type_)
             }
         }
@@ -116,17 +131,48 @@ impl<'a> Context<'a, '_> {
     pub const EMPTY: Context<'static, 'static> = Context(ContextInner::Empty);
     pub fn extend<'b>(&'b self, type_: &'b Type<'a>) -> Context<'a, 'b> {
         Context(ContextInner::Extend {
-            parent: &self.0,
+            parent: self,
             type_,
         })
     }
-    pub(crate) fn fresh_var(&self, type_: Type<'a>) -> Value<'a> {
-        Value::Neutral {
-            type_: Box::new(type_),
-            neu: Neutral::Variable(VVariable::Local(Level {
-                level: self.0.into_iter().count(),
-            })),
+    pub(crate) fn len(&self) -> usize {
+        self.0.into_iter().count()
+    }
+    pub(crate) fn fresh_var(&self) -> Value<'a> {
+        Value::Neutral(Neutral::Variable(VVariable::Local(Level {
+            level: self.len(),
+        })))
+    }
+    pub(crate) fn fresh_var_from_ctx_size(ctx_size: usize) -> Value<'a> {
+        Value::Neutral(Neutral::Variable(VVariable::Local(Level {
+            level: ctx_size,
+        })))
+    }
+    pub fn func_to(&self, defs: &Definitions<'a>, ret_type: Type<'a>) -> Type<'a> {
+        let mut ret_type_expr = read_back_value(defs, self.len(), ret_type.as_value());
+        let mut ctx = self;
+        while let ContextInner::Extend { parent, type_ } = ctx.0 {
+            ret_type_expr = CoreExpression::PiType {
+                tparam_type: Box::new(read_back_value(defs, parent.len(), type_.as_value())),
+                ret_type: Box::new(ret_type_expr),
+            };
+            ctx = parent;
         }
+        Type::create_type_from_value(TypedValue::create_typed_value(
+            Type::UNIVERSE,
+            evaluate(defs, &Environment::EMPTY, &ret_type_expr),
+        ))
+    }
+    pub fn call(&self, mut expr: CoreExpression<'a>) -> CoreExpression<'a> {
+        let count = self.len();
+        for level in 0..count {
+            let index = (count - 1) - level;
+            expr = CoreExpression::Application {
+                func: Box::new(expr),
+                arg: Box::new(CoreExpression::Variable(EVariable::Local(Index { index }))),
+            }
+        }
+        expr
     }
 }
 
@@ -164,17 +210,14 @@ impl<'a> Environment<'a, '_> {
         use EnvironmentInner::*;
         match self.0 {
             From(ctx) => {
-                let mut level = ctx.0.into_iter().count();
-                let mut entries = Vec::with_capacity(level);
-                for entry_type in &ctx.0 {
-                    level -= 1;
-                    entries.push(Value::Neutral {
-                        type_: Box::new(entry_type.clone()),
-                        neu: Neutral::Variable(VVariable::Local(Level { level })),
-                    })
-                }
-                entries.reverse();
-                FlatEnvironment(entries)
+                let count = ctx.len();
+                FlatEnvironment(
+                    (0..count)
+                        .map(|level| {
+                            Value::Neutral(Neutral::Variable(VVariable::Local(Level { level })))
+                        })
+                        .collect(),
+                )
             }
             Extend { parent, val } => {
                 let mut entries = Vec::with_capacity(parent.0.len() + 1);
@@ -190,7 +233,7 @@ impl<'a> Environment<'a, '_> {
 #[derive(Clone, Debug)]
 pub struct Closure<'a> {
     env: FlatEnvironment<'a>,
-    body: Expression<'a>,
+    body: CoreExpression<'a>,
 }
 
 impl fmt::Display for Closure<'_> {
@@ -200,18 +243,18 @@ impl fmt::Display for Closure<'_> {
 }
 
 impl<'a> Closure<'a> {
-    pub(crate) fn new_in_env(env: &Environment<'a, '_>, body: Expression<'a>) -> Closure<'a> {
+    pub(crate) fn new_in_env(env: &Environment<'a, '_>, body: CoreExpression<'a>) -> Closure<'a> {
         Closure {
             env: env.to_flat_environment(),
             body,
         }
     }
-    pub(crate) fn new_in_ctx(ctx: &Context<'a, '_>, body: Expression<'a>) -> Closure<'a> {
+    pub(crate) fn new_in_ctx(ctx: &Context<'a, '_>, body: CoreExpression<'a>) -> Closure<'a> {
         Closure::new_in_env(&Environment(EnvironmentInner::From(ctx)), body)
     }
     /// Calls the closure with an argument.
     pub(crate) fn call(&self, defs: &Definitions<'a>, val: &Value<'a>) -> Value<'a> {
-        crate::typing::evaluation::detail::evaluate(
+        evaluate(
             defs,
             &Environment(EnvironmentInner::Extend {
                 parent: &self.env,

@@ -5,11 +5,11 @@ pub mod checking;
 #[doc(hidden)]
 mod definitions;
 pub(crate) mod environment;
-pub mod equivalence;
 pub mod evaluation;
 pub mod read_back;
 #[doc(hidden)]
 mod type_error;
+pub mod unification;
 pub mod value;
 
 pub use type_error::*;
