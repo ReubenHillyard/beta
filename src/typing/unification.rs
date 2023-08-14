@@ -1,6 +1,7 @@
 //! Functions for unification of terms.
 
-use crate::typing::environments::{Context, Definitions};
+use crate::typing::environment::Context;
+use crate::typing::environments::Definitions;
 use crate::typing::value::TypedValue;
 
 /// Attempts to unify two [`TypedValue`]s of a shared [`Type`].
@@ -16,15 +17,16 @@ pub fn unify<'a>(
 mod detail {
     use crate::typing::checking::lambdas_to;
     use crate::typing::definitions::MetaVar;
-    use crate::typing::environment::Renaming;
-    use crate::typing::environments::{Context, Definitions};
+    use crate::typing::environment::Context;
+    use crate::typing::environments::Definitions;
     use crate::typing::evaluation::do_apply;
+    use crate::typing::read_back::{Renaming, RenamingAvoiding};
     use crate::typing::value::{Level, Neutral, VVariable, Value};
     use crate::typing::TypeError;
 
     pub(crate) fn unify<'a>(
         defs: &mut Definitions<'a>,
-        ctx_size: usize,
+        ctx_len: usize,
         lhs: &Value<'a>,
         rhs: &Value<'a>,
     ) -> super::super::Result<'a, ()> {
@@ -44,29 +46,29 @@ mod detail {
             ) => {
                 unify(
                     defs,
-                    ctx_size,
+                    ctx_len,
                     lhs_param_type.as_value(),
                     rhs_param_type.as_value(),
                 )?;
-                let fresh_var = Context::fresh_var_from_ctx_size(ctx_size);
+                let fresh_var = Context::fresh_var_from_ctx_len(ctx_len);
                 let lhs_ret_type = lhs_tclosure.call(defs, &fresh_var);
                 let rhs_ret_type = rhs_tclosure.call(defs, &fresh_var);
-                unify(defs, ctx_size + 1, &lhs_ret_type, &rhs_ret_type)
+                unify(defs, ctx_len + 1, &lhs_ret_type, &rhs_ret_type)
             }
             (Lambda { .. }, _) | (_, Lambda { .. }) => {
-                let fresh_var = Context::fresh_var_from_ctx_size(ctx_size);
+                let fresh_var = Context::fresh_var_from_ctx_len(ctx_len);
                 let lhs_ret_val = do_apply(defs, &lhs, &fresh_var);
                 let rhs_ret_val = do_apply(defs, &rhs, &fresh_var);
-                unify(defs, ctx_size, &lhs_ret_val, &rhs_ret_val)
+                unify(defs, ctx_len, &lhs_ret_val, &rhs_ret_val)
             }
             (Universe, Universe) => Ok(()),
-            (Neutral(lhs_neu), Neutral(rhs_neu)) => unify_neutral(defs, ctx_size, lhs_neu, rhs_neu),
+            (Neutral(lhs_neu), Neutral(rhs_neu)) => unify_neutral(defs, ctx_len, lhs_neu, rhs_neu),
             (MetaNeutral(lhs_neu), MetaNeutral(rhs_neu))
             if lhs_neu.get_principal() == rhs_neu.get_principal() =>
                 {
-                    unify_neutral(defs, ctx_size, lhs_neu, rhs_neu)
+                    unify_neutral(defs, ctx_len, lhs_neu, rhs_neu)
                 }
-            (MetaNeutral(neu), val) | (val, MetaNeutral(neu)) => solve(defs, ctx_size, neu, val),
+            (MetaNeutral(neu), val) | (val, MetaNeutral(neu)) => solve(defs, ctx_len, neu, val),
             _ => Err(TypeError::CantUnifyDifferentHeads),
         }
     }
@@ -96,13 +98,14 @@ mod detail {
 
     fn solve<'a>(
         defs: &mut Definitions<'a>,
-        ctx_size: usize,
+        ctx_len: usize,
         neu: &Neutral<'a, MetaVar>,
         val: &Value<'a>,
     ) -> super::super::Result<'a, ()> {
         let (mv, vvs) = destructure_neutral(defs, neu)?;
-        let renaming = Renaming::create_renaming(ctx_size, &vvs)?;
-        let expr = renaming.rename_value_avoiding(defs, val, mv)?;
+        let renaming = Renaming::create_renaming(ctx_len, &vvs)?;
+        let renaming_avoiding = RenamingAvoiding::new(&renaming, mv);
+        let expr = renaming_avoiding.rename_value_avoiding(defs, val)?;
         let val = lambdas_to(defs, vvs.len(), expr);
         defs.define_meta(mv, val);
         Ok(())
@@ -110,7 +113,7 @@ mod detail {
 
     fn unify_neutral<'a, VarT: Eq>(
         defs: &mut Definitions<'a>,
-        ctx_size: usize,
+        ctx_len: usize,
         lhs: &Neutral<'a, VarT>,
         rhs: &Neutral<'a, VarT>,
     ) -> super::super::Result<'a, ()> {
@@ -127,8 +130,8 @@ mod detail {
                     arg: rhs_arg,
                 },
             ) => {
-                unify_neutral(defs, ctx_size, lhs_func, rhs_func)?;
-                unify(defs, ctx_size, lhs_arg, rhs_arg)
+                unify_neutral(defs, ctx_len, lhs_func, rhs_func)?;
+                unify(defs, ctx_len, lhs_arg, rhs_arg)
             }
             _ => Err(TypeError::CantUnifyDifferentHeads),
         }

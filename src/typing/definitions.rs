@@ -1,5 +1,5 @@
 use crate::typing::checking::{CoreExpression, TypedExpression};
-use crate::typing::environments::Context;
+use crate::typing::environment::Context;
 use crate::typing::value::{Neutral, Type, TypedValue, Value};
 use std::collections::HashMap;
 use std::fmt;

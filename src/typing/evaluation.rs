@@ -2,10 +2,8 @@
 
 use crate::typing::checking::TypedExpression;
 use crate::typing::definitions::Definitions;
-use crate::typing::environments::Environment;
+use crate::typing::environment::Environment;
 use crate::typing::value::{Neutral, TypedValue, Value};
-
-pub(crate) use crate::typing::environment::context::evaluate_ev;
 
 /// Evaluates an [`TypedExpression`] to a [`TypedValue`].
 pub fn evaluate<'a>(
@@ -21,9 +19,10 @@ pub fn evaluate<'a>(
 
 pub(crate) mod detail {
     use crate::typing::checking::CoreExpression;
-    use crate::typing::environments::{Definitions, Environment};
-    use crate::typing::evaluation::{do_apply, evaluate_ev};
-    use crate::typing::value::{Closure, Type, TypedValue, Value};
+    use crate::typing::environment::{evaluate_ev, Closure, Environment};
+    use crate::typing::environments::Definitions;
+    use crate::typing::evaluation::do_apply;
+    use crate::typing::value::{Type, TypedValue, Value};
 
     pub(crate) fn evaluate<'a>(
         defs: &Definitions<'a>,

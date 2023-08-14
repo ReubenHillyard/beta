@@ -2,15 +2,16 @@
 
 use crate::typing::ast::{EVariable, Expression};
 use crate::typing::definitions::MetaVar;
-use crate::typing::environments::{Context, Definitions, Environment};
+use crate::typing::environment::{Closure, Context, Environment};
+use crate::typing::environments::Definitions;
 use crate::typing::evaluation::{detail, evaluate};
 use crate::typing::unification::unify;
-use crate::typing::value::{Closure, Type, TypedValue, Value};
+use crate::typing::value::{Type, TypedValue, Value};
 use derivative::Derivative;
 use std::fmt;
 use std::fmt::{Display, Formatter};
 
-pub use crate::typing::environment::context::type_var;
+pub use crate::typing::environment::type_var;
 use crate::typing::read_back::read_back_value;
 
 #[derive(Clone, Debug, Eq, PartialEq)]

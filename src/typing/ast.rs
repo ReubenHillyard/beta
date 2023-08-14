@@ -1,6 +1,6 @@
 //! Types for representing abstract syntax.
 
-pub use crate::typing::environment::abstraction::abstract_file;
+pub use crate::typing::abstraction::abstract_file;
 pub use crate::typing::environment::{EVariable, Index};
 use std::fmt;
 

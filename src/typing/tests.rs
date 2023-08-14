@@ -1,7 +1,7 @@
 use crate::lexer::lex;
 use crate::parser::parse_as_expression;
+use crate::typing::abstraction::abstract_expression_empty;
 use crate::typing::ast::{Expression, Index};
-use crate::typing::environment::abstraction::abstract_expression_empty;
 use crate::typing::environment::EVariable;
 use itertools::{Either, Itertools};
 

@@ -1,7 +1,7 @@
 //! Types for representing values.
 
 use crate::typing::definitions::{Definitions, MetaVar};
-pub use crate::typing::environment::context::Closure;
+pub use crate::typing::environment::Closure;
 pub use crate::typing::environment::{Level, VVariable};
 use crate::typing::evaluation::do_apply;
 use std::fmt;
@@ -132,11 +132,5 @@ impl<'a> TypedValue<'a> {
     }
     pub fn get_value(&self) -> &Value<'a> {
         &self.value
-    }
-    pub fn force(&self, defs: &Definitions<'a>) -> TypedValue<'a> {
-        TypedValue {
-            type_: self.type_.force(defs),
-            value: self.value.force(defs),
-        }
     }
 }

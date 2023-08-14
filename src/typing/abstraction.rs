@@ -29,7 +29,7 @@ fn abstract_variable<'a>(
         }
         Extend { parent, name } => {
             if Some(id) == name {
-                Ok(EVariable::Local(Index { index: offset }))
+                Ok(EVariable::Local(Index::create_index(offset)))
             } else {
                 abstract_variable(globals, parent, id, offset + 1)
             }
