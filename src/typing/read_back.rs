@@ -1,21 +1,22 @@
 //! A function for reading back [`Value`]s into [`CoreExpression`]s.
 
-use crate::typing::checking::CoreExpression;
+use crate::typing::checking::{CoreExpression, TypeExpression};
 use crate::typing::definitions::MetaVar;
 use crate::typing::environment::Level;
 use crate::typing::environments::Definitions;
-use crate::typing::value::Value;
+use crate::typing::read_back::detail::ReadBack;
+use crate::typing::value::{Type, Value};
 use crate::typing::TypeError;
 use std::collections::HashMap;
 
 mod detail {
     use crate::typing::ast::Index;
-    use crate::typing::checking::CoreExpression;
+    use crate::typing::checking::{CoreExpression, TypeExpression};
     use crate::typing::definitions::{Definitions, MetaVar};
     use crate::typing::environment::{level_to_index_with_ctx_len, EVariable};
     use crate::typing::environments::Context;
     use crate::typing::read_back::RenamingAvoiding;
-    use crate::typing::value::{Level, Neutral, VVariable, Value};
+    use crate::typing::value::{Level, Neutral, Type, VVariable, Value};
     use crate::typing::TypeError;
 
     #[derive(Debug)]
@@ -59,7 +60,7 @@ mod detail {
                     return Ok(CoreExpression::MetaVariable(mv));
                 }
             }
-            read_back_value(defs, self, &out)
+            out.read_back(defs, self)
         }
     }
 
@@ -95,7 +96,7 @@ mod detail {
                     return Ok(CoreExpression::MetaVariable(mv));
                 }
             }
-            read_back_value(defs, self, &out)
+            out.read_back(defs, self)
         }
     }
 
@@ -130,34 +131,69 @@ mod detail {
         }
     }
 
-    pub fn read_back_value<'a, Ren: Rename<'a>>(
-        defs: &Definitions<'a>,
-        ren: Ren,
-        value: &Value<'a>,
-    ) -> Result<CoreExpression<'a>, Ren::Err> {
-        use Value::*;
-        match value {
-            PiType {
-                param_type,
-                tclosure,
-            } => {
-                let fresh_var = ren.fresh_var();
-                let ret_type = tclosure.call(defs, &fresh_var);
-                Ok(CoreExpression::PiType {
-                    tparam_type: Box::new(read_back_value(defs, ren, param_type.as_value())?),
-                    ret_type: Box::new(read_back_value(defs, ren.lift(), &ret_type)?),
-                })
+    pub trait ReadBack {
+        type ExprT<'b>
+            where
+                Self: 'b;
+        fn read_back<'b, Ren: Rename<'b>>(
+            &self,
+            defs: &Definitions<'b>,
+            ren: Ren,
+        ) -> Result<Self::ExprT<'b>, Ren::Err>
+            where
+                Self: 'b;
+    }
+
+    impl<'a> ReadBack for Value<'a> {
+        type ExprT<'b> = CoreExpression<'b> where Self: 'b;
+        fn read_back<'b, Ren: Rename<'b>>(
+            &self,
+            defs: &Definitions<'b>,
+            ren: Ren,
+        ) -> Result<Self::ExprT<'b>, Ren::Err>
+            where
+                Self: 'b,
+        {
+            use Value::*;
+            match self {
+                PiType {
+                    param_type,
+                    tclosure,
+                } => {
+                    let fresh_var = ren.fresh_var();
+                    let ret_type = tclosure.call(defs, &fresh_var);
+                    Ok(CoreExpression::PiType {
+                        tparam_type: Box::new(param_type.read_back(defs, ren)?),
+                        ret_type: Box::new(ret_type.read_back(defs, ren.lift())?),
+                    })
+                }
+                Lambda { closure } => {
+                    let fresh_var = ren.fresh_var();
+                    let ret_val = closure.call(defs, &fresh_var);
+                    Ok(CoreExpression::Lambda {
+                        ret_val: Box::new(ret_val.read_back(defs, ren.lift())?),
+                    })
+                }
+                Universe => Ok(CoreExpression::Universe),
+                Neutral(neu) => read_back_neutral(defs, ren, neu),
+                MetaNeutral(neu) => read_back_neutral(defs, ren, neu),
             }
-            Lambda { closure } => {
-                let fresh_var = ren.fresh_var();
-                let ret_val = closure.call(defs, &fresh_var);
-                Ok(CoreExpression::Lambda {
-                    ret_val: Box::new(read_back_value(defs, ren.lift(), &ret_val)?),
-                })
-            }
-            Universe => Ok(CoreExpression::Universe),
-            Neutral(neu) => read_back_neutral(defs, ren, neu),
-            MetaNeutral(neu) => read_back_neutral(defs, ren, neu),
+        }
+    }
+
+    impl<'a> ReadBack for Type<'a> {
+        type ExprT<'b> = TypeExpression<'b> where Self: 'b;
+        fn read_back<'b, Ren: Rename<'b>>(
+            &self,
+            defs: &Definitions<'b>,
+            ren: Ren,
+        ) -> Result<Self::ExprT<'b>, Ren::Err>
+            where
+                Self: 'b,
+        {
+            self.wrapped()
+                .read_back(defs, ren)
+                .map(TypeExpression::create_type)
         }
     }
 
@@ -171,7 +207,7 @@ mod detail {
             Variable(var) => var.rename(defs, ren),
             Application { func, arg } => Ok(CoreExpression::Application {
                 func: Box::new(read_back_neutral(defs, ren, func)?),
-                arg: Box::new(read_back_value(defs, ren, arg)?),
+                arg: Box::new(arg.read_back(defs, ren)?),
             }),
         }
     }
@@ -182,7 +218,18 @@ pub fn read_back_value<'a>(
     ctx_len: usize,
     value: &Value<'a>,
 ) -> CoreExpression<'a> {
-    match detail::read_back_value(defs, ctx_len, value) {
+    match value.read_back(defs, ctx_len) {
+        Ok(expr) => expr,
+        Err(err) => match err {},
+    }
+}
+
+pub fn read_back_type<'a>(
+    defs: &Definitions<'a>,
+    ctx_len: usize,
+    type_: &Type<'a>,
+) -> TypeExpression<'a> {
+    match type_.read_back(defs, ctx_len) {
         Ok(expr) => expr,
         Err(err) => match err {},
     }
@@ -259,6 +306,6 @@ impl<'r> RenamingAvoiding<'r> {
         defs: &Definitions<'a>,
         value: &Value<'a>,
     ) -> super::Result<'a, CoreExpression<'a>> {
-        detail::read_back_value(defs, *self, value)
+        value.read_back(defs, *self)
     }
 }

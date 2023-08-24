@@ -1,58 +1,55 @@
 //! Functions for evaluating [`TypedExpression`]s to [`TypedValue`]s.
 
-use crate::typing::checking::TypedExpression;
+use crate::typing::checking::{CoreExpression, TypedExpression};
 use crate::typing::definitions::Definitions;
-use crate::typing::environment::Environment;
-use crate::typing::value::{Neutral, TypedValue, Value};
+use crate::typing::environment::{evaluate_ev, Environment};
+use crate::typing::type_wrapper::Term;
+use crate::typing::value::{Closure, Neutral, TypedValue, Value};
 
-/// Evaluates an [`TypedExpression`] to a [`TypedValue`].
-pub fn evaluate<'a>(
-    defs: &Definitions<'a>,
-    env: &Environment<'a, '_>,
-    expr: &TypedExpression<'a>,
-) -> TypedValue<'a> {
-    TypedValue::create_typed_value(
-        expr.get_type().clone(),
-        detail::evaluate(defs, env, expr.get_expr()),
-    )
+pub trait Evaluate {
+    type ValueT<'b>: Term
+        where
+            Self: 'b;
+    fn evaluate<'b>(&self, defs: &Definitions<'b>, env: &Environment<'b, '_>) -> Self::ValueT<'b>
+        where
+            Self: 'b;
 }
 
-pub(crate) mod detail {
-    use crate::typing::checking::CoreExpression;
-    use crate::typing::environment::{evaluate_ev, Closure, Environment};
-    use crate::typing::environments::Definitions;
-    use crate::typing::evaluation::do_apply;
-    use crate::typing::value::{Type, TypedValue, Value};
-
-    pub(crate) fn evaluate<'a>(
-        defs: &Definitions<'a>,
-        env: &Environment<'a, '_>,
-        expr: &CoreExpression<'a>,
-    ) -> Value<'a> {
+impl<'a> Evaluate for CoreExpression<'a> {
+    type ValueT<'b> = Value<'b> where Self: 'b;
+    fn evaluate<'b>(&self, defs: &Definitions<'b>, env: &Environment<'b, '_>) -> Self::ValueT<'b>
+        where
+            Self: 'b,
+    {
         use CoreExpression::*;
-        match expr {
+        match self {
             MetaVariable(mv) => defs.lookup_meta(*mv),
             Variable(ev) => evaluate_ev(defs, env, ev),
             PiType {
                 tparam_type,
                 ret_type,
             } => Value::PiType {
-                param_type: Box::new(Type::create_type_from_value(
-                    TypedValue::create_typed_value(
-                        Type::UNIVERSE,
-                        evaluate(defs, env, tparam_type),
-                    ),
-                )),
+                param_type: Box::new(tparam_type.evaluate(defs, env)),
                 tclosure: Box::new(Closure::new_in_env(env, (**ret_type).clone())),
             },
-            Lambda { ret_val, .. } => Value::Lambda {
+            Lambda { ret_val } => Value::Lambda {
                 closure: Box::new(Closure::new_in_env(env, (**ret_val).clone())),
             },
-            Application { func, arg, .. } => {
-                do_apply(defs, &evaluate(defs, env, func), &evaluate(defs, env, arg))
+            Application { func, arg } => {
+                do_apply(defs, &func.evaluate(defs, env), &arg.evaluate(defs, env))
             }
             Universe => Value::Universe,
         }
+    }
+}
+
+impl<'a> Evaluate for TypedExpression<'a> {
+    type ValueT<'b> = TypedValue<'b> where Self: 'b;
+    fn evaluate<'b>(&self, defs: &Definitions<'b>, env: &Environment<'b, '_>) -> Self::ValueT<'b>
+        where
+            Self: 'b,
+    {
+        TypedValue::create_typed_value(self.get_type().clone(), self.get_expr().evaluate(defs, env))
     }
 }
 

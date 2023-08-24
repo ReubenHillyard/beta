@@ -9,6 +9,7 @@ pub mod evaluation;
 pub mod read_back;
 #[doc(hidden)]
 mod type_error;
+pub mod type_wrapper;
 pub mod unification;
 pub mod value;
 

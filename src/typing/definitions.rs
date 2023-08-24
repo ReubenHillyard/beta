@@ -1,6 +1,6 @@
-use crate::typing::checking::{CoreExpression, TypedExpression};
+use crate::typing::checking::{CoreExpression, TypeExpression, TypedExpression};
 use crate::typing::environment::Context;
-use crate::typing::value::{Neutral, Type, TypedValue, Value};
+use crate::typing::value::{Force, Neutral, Type, TypedValue, Value};
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::{Display, Formatter};
@@ -45,6 +45,9 @@ impl<'a> Definitions<'a> {
     pub fn add_meta(&mut self, ctx: &Context<'a, '_>, type_: Type<'a>) -> TypedExpression<'a> {
         let mv = self.insert_meta(ctx.func_to(self, type_.clone()));
         TypedExpression::create_typed_expression(ctx.call(CoreExpression::MetaVariable(mv)), type_)
+    }
+    pub fn add_meta_type(&mut self, ctx: &Context<'a, '_>) -> TypeExpression<'a> {
+        self.add_meta(ctx, Type::UNIVERSE).into_type_expr()
     }
     pub fn define_meta(&mut self, mv: MetaVar, value: Value<'a>) {
         let old = self.metas[mv.id].value.replace(value);

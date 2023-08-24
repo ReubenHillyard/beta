@@ -1,11 +1,12 @@
 //! Implements various things `use`d elsewhere.
 
-use crate::typing::checking::{CoreExpression, TypedExpression};
+use crate::typing::checking::{CoreExpression, TypeExpression, TypedExpression};
 use crate::typing::definitions::Definitions;
-use crate::typing::evaluation::detail::evaluate;
-use crate::typing::read_back::read_back_value;
-use crate::typing::value::{Neutral, Type, TypedValue, Value};
+use crate::typing::evaluation::Evaluate;
+use crate::typing::read_back::read_back_type;
+use crate::typing::value::{Neutral, Type, Value};
 use std::fmt;
+use std::fmt::{Display, Formatter};
 
 /// The position of a bound variable, counting from the right of the context.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -19,8 +20,8 @@ impl Index {
     }
 }
 
-impl fmt::Display for Index {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl Display for Index {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "${}", self.index)
     }
 }
@@ -40,8 +41,8 @@ impl Level {
     }
 }
 
-impl fmt::Display for Level {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl Display for Level {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "£{}", self.level)
     }
 }
@@ -53,8 +54,8 @@ pub enum EVariable<'a> {
     Local(Index),
 }
 
-impl<'a> fmt::Display for EVariable<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl<'a> Display for EVariable<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         use EVariable::*;
         match self {
             Global(name) => write!(f, "{}", name),
@@ -70,8 +71,8 @@ pub enum VVariable<'a> {
     Local(Level),
 }
 
-impl<'a> fmt::Display for VVariable<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl<'a> Display for VVariable<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         use VVariable::*;
         match self {
             Global(name) => write!(f, "{}", name),
@@ -206,19 +207,16 @@ impl<'a> Context<'a, '_> {
         })))
     }
     pub fn func_to(&self, defs: &Definitions<'a>, ret_type: Type<'a>) -> Type<'a> {
-        let mut ret_type_expr = read_back_value(defs, self.len(), ret_type.as_value());
+        let mut ret_type_expr = read_back_type(defs, self.len(), &ret_type);
         let mut ctx = self;
         while let ContextInner::Extend { parent, type_ } = ctx.0 {
-            ret_type_expr = CoreExpression::PiType {
-                tparam_type: Box::new(read_back_value(defs, parent.len(), type_.as_value())),
+            ret_type_expr = TypeExpression::create_type(CoreExpression::PiType {
+                tparam_type: Box::new(read_back_type(defs, parent.len(), type_)),
                 ret_type: Box::new(ret_type_expr),
-            };
+            });
             ctx = parent;
         }
-        Type::create_type_from_value(TypedValue::create_typed_value(
-            Type::UNIVERSE,
-            evaluate(defs, &Environment::EMPTY, &ret_type_expr),
-        ))
+        ret_type_expr.evaluate(defs, &Environment::EMPTY)
     }
     pub fn call(&self, mut expr: CoreExpression<'a>) -> CoreExpression<'a> {
         let count = self.len();
@@ -236,8 +234,8 @@ impl<'a> Context<'a, '_> {
 #[derive(Clone, Debug)]
 struct FlatEnvironment<'a>(Vec<Value<'a>>);
 
-impl fmt::Display for FlatEnvironment<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl Display for FlatEnvironment<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "[")?;
         for val in &self.0 {
             write!(f, "{}, ", val)?;
@@ -288,36 +286,35 @@ impl<'a> Environment<'a, '_> {
 
 /// A value which depends on arguments.
 #[derive(Clone, Debug)]
-pub struct Closure<'a> {
+pub struct Closure<'a, E: Evaluate> {
     env: FlatEnvironment<'a>,
-    body: CoreExpression<'a>,
+    body: E,
 }
 
-impl fmt::Display for Closure<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl<E: Evaluate + Display> Display for Closure<'_, E> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{} {}", self.env, self.body)
     }
 }
 
-impl<'a> Closure<'a> {
-    pub(crate) fn new_in_env(env: &Environment<'a, '_>, body: CoreExpression<'a>) -> Closure<'a> {
+impl<'a, E: Evaluate> Closure<'a, E> {
+    pub(crate) fn new_in_env(env: &Environment<'a, '_>, body: E) -> Closure<'a, E> {
         Closure {
             env: env.to_flat_environment(),
             body,
         }
     }
-    pub(crate) fn new_in_ctx(ctx: &Context<'a, '_>, body: CoreExpression<'a>) -> Closure<'a> {
+    pub(crate) fn new_in_ctx(ctx: &Context<'a, '_>, body: E) -> Closure<'a, E> {
         Closure::new_in_env(&Environment(EnvironmentInner::From(ctx)), body)
     }
     /// Calls the closure with an argument.
-    pub(crate) fn call(&self, defs: &Definitions<'a>, val: &Value<'a>) -> Value<'a> {
-        evaluate(
+    pub(crate) fn call(&self, defs: &Definitions<'a>, val: &Value<'a>) -> E::ValueT<'a> {
+        self.body.evaluate(
             defs,
             &Environment(EnvironmentInner::Extend {
                 parent: &self.env,
                 val,
             }),
-            &self.body,
         )
     }
 }

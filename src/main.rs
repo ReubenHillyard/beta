@@ -7,9 +7,8 @@ use crate::lexer::lex;
 use crate::typing::ast::abstract_file;
 use crate::typing::checking::{synth_type, TypedExpression};
 use crate::typing::environments::{Context, Definitions, Environment};
-use crate::typing::evaluation::evaluate;
-use crate::typing::read_back::read_back_value;
-use crate::typing::value::Type;
+use crate::typing::evaluation::Evaluate;
+use crate::typing::read_back::{read_back_type, read_back_value};
 use itertools::{Either, Itertools};
 use std::fs::read_to_string;
 
@@ -62,23 +61,13 @@ pub fn main() {
             println!("could not deduce values for some meta-variables in `{name}`");
             return;
         }
-        let value = evaluate(&defs, &env, &typed_expr);
-        let type_expr = read_back_value(&defs, 0, value.get_type().as_value());
+        let value = typed_expr.evaluate(&defs, &env);
+        let type_expr = read_back_type(&defs, 0, value.get_type());
         let value_expr = read_back_value(&defs, 0, value.get_value());
         println!("{name} = {} as {}\n", value_expr, type_expr);
-        let type_ = evaluate(
-            &defs,
-            &env,
-            &TypedExpression::create_typed_expression(type_expr, Type::UNIVERSE),
-        );
-        let value = evaluate(
-            &defs,
-            &env,
-            &TypedExpression::create_typed_expression(
-                value_expr,
-                Type::create_type_from_value(type_),
-            ),
-        );
+        let type_ = type_expr.evaluate(&defs, &env);
+        let value =
+            TypedExpression::create_typed_expression(value_expr, type_).evaluate(&defs, &env);
         defs.insert_global(name, value);
         defs.reset_metas();
     }
