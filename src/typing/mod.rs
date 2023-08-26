@@ -1,12 +1,15 @@
 //! Types and functions for type-checking.
 
+pub mod abstraction;
 pub mod ast;
 pub mod checking;
 #[doc(hidden)]
 mod definitions;
 mod environment;
 pub mod evaluation;
+pub mod expression;
 pub mod read_back;
+pub(crate) mod renaming;
 #[doc(hidden)]
 mod type_error;
 pub mod type_wrapper;
@@ -21,8 +24,6 @@ pub mod environments {
     pub use crate::typing::environment::Context;
     pub use crate::typing::environment::Environment;
 }
-
-pub(crate) mod abstraction;
 
 #[cfg(test)]
 #[doc(hidden)]

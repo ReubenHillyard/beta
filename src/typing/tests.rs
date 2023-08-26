@@ -1,8 +1,7 @@
 use crate::lexer::lex;
 use crate::parser::parse_as_expression;
 use crate::typing::abstraction::abstract_expression_empty;
-use crate::typing::ast::{Expression, Index};
-use crate::typing::environment::EVariable;
+use crate::typing::ast::{EVariable, Expression, Index};
 use itertools::{Either, Itertools};
 
 fn parse_expr(source: &str) -> Option<Expression> {

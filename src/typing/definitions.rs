@@ -1,6 +1,6 @@
-use crate::typing::checking::{CoreExpression, TypeExpression, TypedExpression};
 use crate::typing::environment::Context;
-use crate::typing::value::{Force, Neutral, Type, TypedValue, Value};
+use crate::typing::expression::{CoreExpression, TypeExpression, TypedExpression};
+use crate::typing::value::{Force, Neutral, Principal, Type, TypedValue, Value};
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::{Display, Formatter};
@@ -44,10 +44,10 @@ impl<'a> Definitions<'a> {
     }
     pub fn add_meta(&mut self, ctx: &Context<'a, '_>, type_: Type<'a>) -> TypedExpression<'a> {
         let mv = self.insert_meta(ctx.func_to(self, type_.clone()));
-        TypedExpression::create_typed_expression(ctx.call(CoreExpression::MetaVariable(mv)), type_)
+        TypedExpression::create_typed(type_, ctx.call(CoreExpression::MetaVariable(mv)))
     }
     pub fn add_meta_type(&mut self, ctx: &Context<'a, '_>) -> TypeExpression<'a> {
-        self.add_meta(ctx, Type::UNIVERSE).into_type_expr()
+        self.add_meta(ctx, Type::UNIVERSE).into_type()
     }
     pub fn define_meta(&mut self, mv: MetaVar, value: Value<'a>) {
         let old = self.metas[mv.id].value.replace(value);
@@ -56,7 +56,7 @@ impl<'a> Definitions<'a> {
     pub fn lookup_meta(&self, mv: MetaVar) -> Value<'a> {
         match &self.metas[mv.id].value {
             Some(value) => value.force(self),
-            _ => Value::MetaNeutral(Neutral::Variable(mv)),
+            _ => Value::Neutral(Neutral::Principal(Principal::MetaVariable(mv))),
         }
     }
     pub fn type_meta(&self, mv: MetaVar) -> Type<'a> {

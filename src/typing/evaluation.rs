@@ -1,27 +1,20 @@
 //! Functions for evaluating [`TypedExpression`]s to [`TypedValue`]s.
 
-use crate::typing::checking::{CoreExpression, TypedExpression};
 use crate::typing::definitions::Definitions;
 use crate::typing::environment::{evaluate_ev, Environment};
+use crate::typing::expression::CoreExpression;
 use crate::typing::type_wrapper::Term;
-use crate::typing::value::{Closure, Neutral, TypedValue, Value};
+use crate::typing::value::{Closure, Neutral, Value};
 
-pub trait Evaluate {
-    type ValueT<'b>: Term
-        where
-            Self: 'b;
-    fn evaluate<'b>(&self, defs: &Definitions<'b>, env: &Environment<'b, '_>) -> Self::ValueT<'b>
-        where
-            Self: 'b;
+pub trait Evaluate<'a> {
+    type ValueT: Term;
+    fn evaluate(&self, defs: &Definitions<'a>, env: &Environment<'a, '_>) -> Self::ValueT;
 }
 
-impl<'a> Evaluate for CoreExpression<'a> {
-    type ValueT<'b> = Value<'b> where Self: 'b;
-    fn evaluate<'b>(&self, defs: &Definitions<'b>, env: &Environment<'b, '_>) -> Self::ValueT<'b>
-        where
-            Self: 'b,
-    {
-        use CoreExpression::*;
+impl<'a> Evaluate<'a> for CoreExpression<'a> {
+    type ValueT = Value<'a>;
+    fn evaluate(&self, defs: &Definitions<'a>, env: &Environment<'a, '_>) -> Self::ValueT {
+        use crate::typing::expression::CoreExpression::*;
         match self {
             MetaVariable(mv) => defs.lookup_meta(*mv),
             Variable(ev) => evaluate_ev(defs, env, ev),
@@ -43,16 +36,6 @@ impl<'a> Evaluate for CoreExpression<'a> {
     }
 }
 
-impl<'a> Evaluate for TypedExpression<'a> {
-    type ValueT<'b> = TypedValue<'b> where Self: 'b;
-    fn evaluate<'b>(&self, defs: &Definitions<'b>, env: &Environment<'b, '_>) -> Self::ValueT<'b>
-        where
-            Self: 'b,
-    {
-        TypedValue::create_typed_value(self.get_type().clone(), self.get_expr().evaluate(defs, env))
-    }
-}
-
 /// Call a function with an argument.
 pub(crate) fn do_apply<'a>(defs: &Definitions<'a>, func: &Value<'a>, arg: &Value<'a>) -> Value<'a> {
     match func {
@@ -61,10 +44,6 @@ pub(crate) fn do_apply<'a>(defs: &Definitions<'a>, func: &Value<'a>, arg: &Value
             func: Box::new(neu.clone()),
             arg: Box::new(arg.clone()),
         }),
-        Value::MetaNeutral(neu) => Value::MetaNeutral(Neutral::Application {
-            func: Box::new(neu.clone()),
-            arg: Box::new(arg.clone()),
-        }),
-        _ => panic!("Cannot call `{}` because it is not a function.", func),
+        _ => panic!("Cannot call `{func}` because it is not a function."),
     }
 }

@@ -53,14 +53,14 @@ pub mod cst {
             use Expression::*;
             match self {
                 Underscore => write!(f, "_"),
-                Variable(id) => id.fmt(f),
+                Variable(id) => write!(f, "{id}"),
                 PiType {
                     tparam,
                     tparam_type,
                     ret_type,
                 } => {
                     let tparam = tparam.unwrap_or("_");
-                    write!(f, "({} : {}) -> {}", tparam, tparam_type, ret_type)
+                    write!(f, "({tparam} : {tparam_type}) -> {ret_type}")
                 }
                 Lambda {
                     param,
@@ -70,14 +70,14 @@ pub mod cst {
                     let param = param.unwrap_or("_");
                     match param_type {
                         Some(param_type) => {
-                            write!(f, "({} : {}) => {}", param, param_type, ret_val)
+                            write!(f, "({param} : {param_type}) => {ret_val}")
                         }
-                        None => write!(f, "{} => {}", param, ret_val),
+                        None => write!(f, "{param} => {ret_val}"),
                     }
                 }
-                Application { func, arg } => write!(f, "({})({})", func, arg),
+                Application { func, arg } => write!(f, "({func})({arg})"),
                 Universe => write!(f, "Type"),
-                Annotation { expr, type_ } => write!(f, "({} as {})", expr, type_),
+                Annotation { expr, type_ } => write!(f, "({expr} as {type_})"),
             }
         }
     }

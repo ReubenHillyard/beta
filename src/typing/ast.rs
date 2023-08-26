@@ -1,8 +1,9 @@
 //! Types for representing abstract syntax.
 
-pub use crate::typing::abstraction::abstract_file;
-pub use crate::typing::environment::{EVariable, Index};
 use std::fmt;
+use std::fmt::{Display, Formatter};
+
+pub use crate::typing::environment::Index;
 
 /// The abstract syntax of a file.
 #[derive(Debug)]
@@ -34,30 +35,40 @@ pub enum Expression<'a> {
     },
 }
 
-impl fmt::Display for Expression<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl Display for Expression<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         use Expression::*;
         match self {
             Underscore => write!(f, "?"),
-            Variable(id) => id.fmt(f),
+            Variable(id) => write!(f, "{id}"),
             PiType {
                 tparam_type,
                 ret_type,
-            } => write!(f, "($ : {}) -> {}", tparam_type, ret_type),
+            } => write!(f, "($ : {tparam_type}) -> {ret_type}"),
             Lambda {
                 param_type,
                 ret_val,
-            } => write!(f, "($ : {}) => {}", param_type, ret_val),
-            Application { func, arg } => write!(f, "({})({})", func, arg),
+            } => write!(f, "($ : {param_type}) => {ret_val}"),
+            Application { func, arg } => write!(f, "({func})({arg})"),
             Universe => write!(f, "Type"),
-            Annotation { expr, type_ } => write!(f, "({} as {})", expr, type_),
+            Annotation { expr, type_ } => write!(f, "({expr} as {type_})"),
         }
     }
 }
 
-/// An error regarding the use of concrete names.
-#[derive(Debug)]
-pub enum NameError<'a> {
-    DuplicateGlobal(&'a str, &'a str),
-    NotFound(&'a str),
+/// A variable that may appear in an expression.
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum EVariable<'a> {
+    Global(&'a str),
+    Local(Index),
+}
+
+impl<'a> Display for EVariable<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        use EVariable::*;
+        match self {
+            Global(name) => write!(f, "{name}"),
+            Local(index) => write!(f, "{index}"),
+        }
+    }
 }

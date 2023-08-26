@@ -4,13 +4,14 @@
 //! interpretation of univalence.
 
 use crate::lexer::lex;
-use crate::typing::ast::abstract_file;
-use crate::typing::checking::{synth_type, TypedExpression};
+use crate::typing::abstraction::abstract_file;
+use crate::typing::checking::synth_type;
 use crate::typing::environments::{Context, Definitions, Environment};
 use crate::typing::evaluation::Evaluate;
-use crate::typing::read_back::{read_back_type, read_back_value};
+use crate::typing::read_back::read_back_with_ctx_len;
 use itertools::{Either, Itertools};
 use std::fs::read_to_string;
+use typing::expression::TypedExpression;
 
 pub mod ir_gen;
 pub mod lexer;
@@ -62,12 +63,11 @@ pub fn main() {
             return;
         }
         let value = typed_expr.evaluate(&defs, &env);
-        let type_expr = read_back_type(&defs, 0, value.get_type());
-        let value_expr = read_back_value(&defs, 0, value.get_value());
+        let type_expr = read_back_with_ctx_len(&defs, 0, value.get_type());
+        let value_expr = read_back_with_ctx_len(&defs, 0, value.get_term());
         println!("{name} = {} as {}\n", value_expr, type_expr);
         let type_ = type_expr.evaluate(&defs, &env);
-        let value =
-            TypedExpression::create_typed_expression(value_expr, type_).evaluate(&defs, &env);
+        let value = TypedExpression::create_typed(type_, value_expr).evaluate(&defs, &env);
         defs.insert_global(name, value);
         defs.reset_metas();
     }

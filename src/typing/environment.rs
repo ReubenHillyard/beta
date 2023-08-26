@@ -1,10 +1,11 @@
 //! Implements various things `use`d elsewhere.
 
-use crate::typing::checking::{CoreExpression, TypeExpression, TypedExpression};
+use crate::typing::ast::EVariable;
 use crate::typing::definitions::Definitions;
 use crate::typing::evaluation::Evaluate;
-use crate::typing::read_back::read_back_type;
-use crate::typing::value::{Neutral, Type, Value};
+use crate::typing::expression::{CoreExpression, TypeExpression, TypedExpression};
+use crate::typing::read_back::read_back_with_ctx_len;
+use crate::typing::value::{Neutral, Principal, Type, VVariable, Value};
 use std::fmt;
 use std::fmt::{Display, Formatter};
 
@@ -47,40 +48,6 @@ impl Display for Level {
     }
 }
 
-/// A variable that may appear in an expression.
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub enum EVariable<'a> {
-    Global(&'a str),
-    Local(Index),
-}
-
-impl<'a> Display for EVariable<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        use EVariable::*;
-        match self {
-            Global(name) => write!(f, "{}", name),
-            Local(index) => write!(f, "{}", index),
-        }
-    }
-}
-
-/// A variable that may appear in a value.
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub enum VVariable<'a> {
-    Global(&'a str),
-    Local(Level),
-}
-
-impl<'a> Display for VVariable<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        use VVariable::*;
-        match self {
-            Global(name) => write!(f, "{}", name),
-            Local(level) => write!(f, "{}", level),
-        }
-    }
-}
-
 /// Converts a [`Level`] to the corresponding [`Index`].
 pub(crate) fn level_to_index_with_ctx_len(ctx_len: usize, level: Level) -> Index {
     Index {
@@ -99,15 +66,16 @@ pub(crate) fn evaluate_ev<'a>(
 ) -> Value<'a> {
     use EVariable::*;
     match ev {
-        Global(name) => defs.lookup_global(name).get_value().clone(),
+        Global(name) => defs.lookup_global(name).get_term().clone(),
         Local(Index { index }) => {
             use EnvironmentInner::*;
             match env.0 {
-                From(ctx) => {
-                    let ctx_len = ctx.0.into_iter().count();
+                FromCtxLen(ctx_len) => {
                     assert!(*index < ctx_len, "index out of range");
                     let level = (ctx_len - 1) - index;
-                    Value::Neutral(Neutral::Variable(VVariable::Local(Level { level })))
+                    Value::Neutral(Neutral::Principal(Principal::Variable(VVariable::Local(
+                        Level { level },
+                    ))))
                 }
                 Extend { parent, val } => {
                     assert!(*index < parent.0.len() + 1, "index out of range");
@@ -130,12 +98,12 @@ pub fn type_var<'a, 'b>(
     ev: EVariable<'a>,
 ) -> TypedExpression<'a> {
     use EVariable::*;
-    TypedExpression::create_typed_expression(
-        CoreExpression::Variable(ev),
+    TypedExpression::create_typed(
         match ev {
             Global(name) => defs.lookup_global(name).get_type().clone(),
             Local(Index { index }) => ctx.0.into_iter().nth(index).unwrap().clone(),
         },
+        CoreExpression::Variable(ev),
     )
 }
 
@@ -197,23 +165,23 @@ impl<'a> Context<'a, '_> {
         self.0.into_iter().count()
     }
     pub(crate) fn fresh_var(&self) -> Value<'a> {
-        Value::Neutral(Neutral::Variable(VVariable::Local(Level {
-            level: self.len(),
-        })))
+        Value::Neutral(Neutral::Principal(Principal::Variable(VVariable::Local(
+            Level { level: self.len() },
+        ))))
     }
     pub(crate) fn fresh_var_from_ctx_len(ctx_len: usize) -> Value<'a> {
-        Value::Neutral(Neutral::Variable(VVariable::Local(Level {
-            level: ctx_len,
-        })))
+        Value::Neutral(Neutral::Principal(Principal::Variable(VVariable::Local(
+            Level { level: ctx_len },
+        ))))
     }
     pub fn func_to(&self, defs: &Definitions<'a>, ret_type: Type<'a>) -> Type<'a> {
-        let mut ret_type_expr = read_back_type(defs, self.len(), &ret_type);
+        let mut ret_type_expr = read_back_with_ctx_len(defs, self.len(), &ret_type);
         let mut ctx = self;
         while let ContextInner::Extend { parent, type_ } = ctx.0 {
-            ret_type_expr = TypeExpression::create_type(CoreExpression::PiType {
-                tparam_type: Box::new(read_back_type(defs, parent.len(), type_)),
-                ret_type: Box::new(ret_type_expr),
-            });
+            ret_type_expr = TypeExpression::pi_type(
+                read_back_with_ctx_len(defs, parent.len(), type_),
+                ret_type_expr,
+            );
             ctx = parent;
         }
         ret_type_expr.evaluate(defs, &Environment::EMPTY)
@@ -238,14 +206,14 @@ impl Display for FlatEnvironment<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "[")?;
         for val in &self.0 {
-            write!(f, "{}, ", val)?;
+            write!(f, "{val}, ")?;
         }
         write!(f, "]")
     }
 }
 
 enum EnvironmentInner<'a, 'b> {
-    From(&'b Context<'a, 'b>),
+    FromCtxLen(usize),
     Extend {
         parent: &'b FlatEnvironment<'a>,
         val: &'b Value<'a>,
@@ -256,24 +224,22 @@ enum EnvironmentInner<'a, 'b> {
 pub struct Environment<'a, 'b>(EnvironmentInner<'a, 'b>);
 
 impl<'a> Environment<'a, '_> {
-    pub const EMPTY: Environment<'static, 'static> =
-        Environment(EnvironmentInner::From(&Context::EMPTY));
+    pub const EMPTY: Environment<'static, 'static> = Environment(EnvironmentInner::FromCtxLen(0));
     pub fn from_context<'b>(ctx: &'b Context<'a, 'b>) -> Environment<'a, 'b> {
-        Environment(EnvironmentInner::From(ctx))
+        Environment(EnvironmentInner::FromCtxLen(ctx.len()))
     }
     fn to_flat_environment(&self) -> FlatEnvironment<'a> {
         use EnvironmentInner::*;
         match self.0 {
-            From(ctx) => {
-                let count = ctx.len();
-                FlatEnvironment(
-                    (0..count)
-                        .map(|level| {
-                            Value::Neutral(Neutral::Variable(VVariable::Local(Level { level })))
-                        })
-                        .collect(),
-                )
-            }
+            FromCtxLen(ctx_len) => FlatEnvironment(
+                (0..ctx_len)
+                    .map(|level| {
+                        Value::Neutral(Neutral::Principal(Principal::Variable(VVariable::Local(
+                            Level { level },
+                        ))))
+                    })
+                    .collect(),
+            ),
             Extend { parent, val } => {
                 let mut entries = Vec::with_capacity(parent.0.len() + 1);
                 entries.clone_from(&parent.0);
@@ -286,18 +252,18 @@ impl<'a> Environment<'a, '_> {
 
 /// A value which depends on arguments.
 #[derive(Clone, Debug)]
-pub struct Closure<'a, E: Evaluate> {
+pub struct Closure<'a, E: Evaluate<'a>> {
     env: FlatEnvironment<'a>,
     body: E,
 }
 
-impl<E: Evaluate + Display> Display for Closure<'_, E> {
+impl<'a, E: Evaluate<'a> + Display> Display for Closure<'a, E> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{} {}", self.env, self.body)
     }
 }
 
-impl<'a, E: Evaluate> Closure<'a, E> {
+impl<'a, E: Evaluate<'a>> Closure<'a, E> {
     pub(crate) fn new_in_env(env: &Environment<'a, '_>, body: E) -> Closure<'a, E> {
         Closure {
             env: env.to_flat_environment(),
@@ -305,10 +271,10 @@ impl<'a, E: Evaluate> Closure<'a, E> {
         }
     }
     pub(crate) fn new_in_ctx(ctx: &Context<'a, '_>, body: E) -> Closure<'a, E> {
-        Closure::new_in_env(&Environment(EnvironmentInner::From(ctx)), body)
+        Closure::new_in_env(&Environment::from_context(ctx), body)
     }
     /// Calls the closure with an argument.
-    pub(crate) fn call(&self, defs: &Definitions<'a>, val: &Value<'a>) -> E::ValueT<'a> {
+    pub(crate) fn call(&self, defs: &Definitions<'a>, val: &Value<'a>) -> E::ValueT {
         self.body.evaluate(
             defs,
             &Environment(EnvironmentInner::Extend {

@@ -1,6 +1,12 @@
 use crate::parser::cst;
-use crate::typing::ast;
-use crate::typing::ast::{EVariable, Expression, Index, NameError};
+use crate::typing::ast::{EVariable, Expression, File, Index};
+
+/// An error regarding the use of concrete names.
+#[derive(Debug)]
+pub enum NameError<'a> {
+    DuplicateGlobal(&'a str, &'a str),
+    NotFound(&'a str),
+}
 
 /// A list of names, used when the types in the context are immaterial.
 enum Names<'a, 'b> {
@@ -148,7 +154,7 @@ pub(crate) fn abstract_expression_empty<'a>(
 }
 
 /// Converts the concrete syntax of a file to abstract syntax.
-pub fn abstract_file<'a>(file: &cst::File<'a>) -> Result<ast::File<'a>, Vec<NameError<'a>>> {
+pub fn abstract_file<'a>(file: &cst::File<'a>) -> Result<File<'a>, Vec<NameError<'a>>> {
     let mut globals = Vec::new();
     let mut errors = Vec::new();
     for decl in &file.declarations {
@@ -172,7 +178,7 @@ pub fn abstract_file<'a>(file: &cst::File<'a>) -> Result<ast::File<'a>, Vec<Name
         }
     }
     if errors.is_empty() {
-        Ok(ast::File { globals })
+        Ok(File { globals })
     } else {
         Err(errors)
     }
