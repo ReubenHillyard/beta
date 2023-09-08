@@ -1,36 +1,38 @@
 //! Functions for evaluating [`TypedExpression`]s to [`TypedValue`]s.
 
-use crate::typing::definitions::Definitions;
-use crate::typing::environment::{evaluate_ev, Environment};
+use crate::typing::definitions::{Definitions, DefsWithEnv};
+use crate::typing::environment::evaluate_ev;
 use crate::typing::expression::CoreExpression;
 use crate::typing::type_wrapper::Term;
 use crate::typing::value::{Closure, Neutral, Value};
 
 pub trait Evaluate<'a> {
     type ValueT: Term;
-    fn evaluate(&self, defs: &Definitions<'a>, env: &Environment<'a, '_>) -> Self::ValueT;
+    fn evaluate(&self, defs_env: DefsWithEnv<'a, '_>) -> Self::ValueT;
 }
 
 impl<'a> Evaluate<'a> for CoreExpression<'a> {
     type ValueT = Value<'a>;
-    fn evaluate(&self, defs: &Definitions<'a>, env: &Environment<'a, '_>) -> Self::ValueT {
+    fn evaluate(&self, defs_env: DefsWithEnv<'a, '_>) -> Self::ValueT {
         use crate::typing::expression::CoreExpression::*;
         match self {
-            MetaVariable(mv) => defs.lookup_meta(*mv),
-            Variable(ev) => evaluate_ev(defs, env, ev),
+            MetaVariable(mv) => defs_env.defs.lookup_meta(*mv),
+            Variable(ev) => evaluate_ev(defs_env, ev),
             PiType {
                 tparam_type,
                 ret_type,
             } => Value::PiType {
-                param_type: Box::new(tparam_type.evaluate(defs, env)),
-                tclosure: Box::new(Closure::new_in_env(env, (**ret_type).clone())),
+                param_type: Box::new(tparam_type.evaluate(defs_env)),
+                tclosure: Box::new(Closure::new_in_env(defs_env.env, (**ret_type).clone())),
             },
             Lambda { ret_val } => Value::Lambda {
-                closure: Box::new(Closure::new_in_env(env, (**ret_val).clone())),
+                closure: Box::new(Closure::new_in_env(defs_env.env, (**ret_val).clone())),
             },
-            Application { func, arg } => {
-                do_apply(defs, &func.evaluate(defs, env), &arg.evaluate(defs, env))
-            }
+            Application { func, arg } => do_apply(
+                defs_env.defs,
+                &func.evaluate(defs_env),
+                &arg.evaluate(defs_env),
+            ),
             Universe => Value::Universe,
         }
     }

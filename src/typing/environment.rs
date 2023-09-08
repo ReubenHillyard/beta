@@ -2,8 +2,9 @@
 
 use crate::typing::ast::EVariable;
 use crate::typing::definitions::Definitions;
+use crate::typing::environments::{DefsWithCtx, DefsWithEnv};
 use crate::typing::evaluation::Evaluate;
-use crate::typing::expression::{CoreExpression, TypeExpression, TypedExpression};
+use crate::typing::expression::{CoreExpression, TypeExpression};
 use crate::typing::read_back::read_back_with_ctx_len;
 use crate::typing::value::{Neutral, Principal, Type, VVariable, Value};
 use std::fmt;
@@ -18,6 +19,9 @@ pub struct Index {
 impl Index {
     pub(crate) fn create_index(index: usize) -> Index {
         Index { index }
+    }
+    pub(crate) fn get_inner(self) -> usize {
+        self.index
     }
 }
 
@@ -59,17 +63,13 @@ pub(crate) fn level_to_index_with_ctx_len(ctx_len: usize, level: Level) -> Index
 }
 
 /// Evaluates an [`EVariable`] to a [`Value`].
-pub(crate) fn evaluate_ev<'a>(
-    defs: &Definitions<'a>,
-    env: &Environment<'a, '_>,
-    ev: &EVariable<'a>,
-) -> Value<'a> {
+pub(crate) fn evaluate_ev<'a>(defs_env: DefsWithEnv<'a, '_>, ev: &EVariable<'a>) -> Value<'a> {
     use EVariable::*;
     match ev {
-        Global(name) => defs.lookup_global(name).get_term().clone(),
+        Global(name) => defs_env.defs.lookup_global(name).get_term().clone(),
         Local(Index { index }) => {
             use EnvironmentInner::*;
-            match env.0 {
+            match defs_env.env.0 {
                 FromCtxLen(ctx_len) => {
                     assert!(*index < ctx_len, "index out of range");
                     let level = (ctx_len - 1) - index;
@@ -92,21 +92,15 @@ pub(crate) fn evaluate_ev<'a>(
 }
 
 /// Creates a [`TypedExpression`] from an [`EVariable`].
-pub fn type_var<'a, 'b>(
-    defs: &'b Definitions<'a>,
-    ctx: &'b Context<'a, 'b>,
-    ev: EVariable<'a>,
-) -> TypedExpression<'a> {
+pub fn type_var<'a>(defs_ctx: &DefsWithCtx<'a, '_>, ev: EVariable<'a>) -> Type<'a> {
     use EVariable::*;
-    TypedExpression::create_typed(
-        match ev {
-            Global(name) => defs.lookup_global(name).get_type().clone(),
-            Local(Index { index }) => ctx.0.into_iter().nth(index).unwrap().clone(),
-        },
-        CoreExpression::Variable(ev),
-    )
+    match ev {
+        Global(name) => defs_ctx.defs.lookup_global(name).get_type().clone(),
+        Local(Index { index }) => defs_ctx.ctx.0.into_iter().nth(index).unwrap().clone(),
+    }
 }
 
+#[derive(Copy, Clone)]
 enum ContextInner<'a, 'b> {
     Empty,
     Extend {
@@ -151,6 +145,7 @@ impl<'a, 'b> IntoIterator for &'b ContextInner<'a, 'b> {
 }
 
 /// A typing context.
+#[derive(Copy, Clone)]
 pub struct Context<'a, 'b>(ContextInner<'a, 'b>);
 
 impl<'a> Context<'a, '_> {
@@ -174,18 +169,6 @@ impl<'a> Context<'a, '_> {
             Level { level: ctx_len },
         ))))
     }
-    pub fn func_to(&self, defs: &Definitions<'a>, ret_type: Type<'a>) -> Type<'a> {
-        let mut ret_type_expr = read_back_with_ctx_len(defs, self.len(), &ret_type);
-        let mut ctx = self;
-        while let ContextInner::Extend { parent, type_ } = ctx.0 {
-            ret_type_expr = TypeExpression::pi_type(
-                read_back_with_ctx_len(defs, parent.len(), type_),
-                ret_type_expr,
-            );
-            ctx = parent;
-        }
-        ret_type_expr.evaluate(defs, &Environment::EMPTY)
-    }
     pub fn call(&self, mut expr: CoreExpression<'a>) -> CoreExpression<'a> {
         let count = self.len();
         for level in 0..count {
@@ -196,6 +179,24 @@ impl<'a> Context<'a, '_> {
             }
         }
         expr
+    }
+}
+
+impl<'a, 'b> DefsWithCtx<'a, 'b> {
+    pub fn func_to(&self, ret_type: &Type<'a>) -> Type<'a> {
+        let mut ctx_len = self.ctx.len();
+        let mut ret_type_expr = read_back_with_ctx_len(self.defs, ctx_len, ret_type);
+        for type_ in self.ctx.0.into_iter() {
+            ctx_len -= 1;
+            ret_type_expr = TypeExpression::pi_type(
+                read_back_with_ctx_len(self.defs, ctx_len, type_),
+                ret_type_expr,
+            );
+        }
+        ret_type_expr.evaluate(DefsWithEnv {
+            defs: self.defs,
+            env: &Environment::EMPTY,
+        })
     }
 }
 
@@ -275,12 +276,12 @@ impl<'a, E: Evaluate<'a>> Closure<'a, E> {
     }
     /// Calls the closure with an argument.
     pub(crate) fn call(&self, defs: &Definitions<'a>, val: &Value<'a>) -> E::ValueT {
-        self.body.evaluate(
+        self.body.evaluate(DefsWithEnv {
             defs,
-            &Environment(EnvironmentInner::Extend {
+            env: &Environment(EnvironmentInner::Extend {
                 parent: &self.env,
                 val,
             }),
-        )
+        })
     }
 }

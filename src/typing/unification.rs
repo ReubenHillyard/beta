@@ -1,27 +1,34 @@
 //! Functions for unification of terms.
 
-use crate::typing::environment::Context;
-use crate::typing::environments::Definitions;
+use crate::typing::environments::DefsWithCtx;
 use crate::typing::value::{Type, TypedValue};
 
 /// Attempts to unify two [`TypedValue`]s of a shared [`Type`].
 pub fn unify<'a>(
-    defs: &mut Definitions<'a>,
-    ctx: &Context<'a, '_>,
+    defs_ctx: &mut DefsWithCtx<'a, '_>,
     lhs: &TypedValue<'a>,
     rhs: &TypedValue<'a>,
 ) -> super::Result<'a, ()> {
-    detail::unify(defs, ctx.len(), lhs.get_term(), rhs.get_term())
+    detail::unify(
+        defs_ctx.defs,
+        defs_ctx.ctx.len(),
+        lhs.get_term(),
+        rhs.get_term(),
+    )
 }
 
 /// Attempts to unify two [`Type`]s.
 pub fn unify_types<'a>(
-    defs: &mut Definitions<'a>,
-    ctx: &Context<'a, '_>,
+    defs_ctx: &mut DefsWithCtx<'a, '_>,
     lhs: &Type<'a>,
     rhs: &Type<'a>,
 ) -> super::Result<'a, ()> {
-    detail::unify(defs, ctx.len(), lhs.wrapped(), rhs.wrapped())
+    detail::unify(
+        defs_ctx.defs,
+        defs_ctx.ctx.len(),
+        lhs.wrapped(),
+        rhs.wrapped(),
+    )
 }
 
 mod detail {

@@ -6,7 +6,7 @@
 use crate::lexer::lex;
 use crate::typing::abstraction::abstract_file;
 use crate::typing::checking::synth_type;
-use crate::typing::environments::{Context, Definitions, Environment};
+use crate::typing::environments::Definitions;
 use crate::typing::evaluation::Evaluate;
 use crate::typing::read_back::read_back_with_ctx_len;
 use itertools::{Either, Itertools};
@@ -48,9 +48,8 @@ pub fn main() {
         }
     };
     let mut defs = Definitions::default();
-    let env = Environment::EMPTY;
     for (name, expr) in file.globals {
-        let typed_expr = match synth_type(&mut defs, &Context::EMPTY, &expr) {
+        let typed_expr = match synth_type(&mut defs.with_empty_ctx(), &expr) {
             Ok(type_) => type_,
             Err(error) => {
                 println!("type error: {:#?}\n\n", error);
@@ -62,12 +61,13 @@ pub fn main() {
             println!("could not deduce values for some meta-variables in `{name}`");
             return;
         }
-        let value = typed_expr.evaluate(&defs, &env);
+        let value = typed_expr.evaluate(defs.with_empty_env());
         let type_expr = read_back_with_ctx_len(&defs, 0, value.get_type());
         let value_expr = read_back_with_ctx_len(&defs, 0, value.get_term());
         println!("{name} = {} as {}\n", value_expr, type_expr);
-        let type_ = type_expr.evaluate(&defs, &env);
-        let value = TypedExpression::create_typed(type_, value_expr).evaluate(&defs, &env);
+        let type_ = type_expr.evaluate(defs.with_empty_env());
+        let value =
+            TypedExpression::create_typed(type_, value_expr).evaluate(defs.with_empty_env());
         defs.insert_global(name, value);
         defs.reset_metas();
     }

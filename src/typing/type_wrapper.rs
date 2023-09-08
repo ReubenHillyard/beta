@@ -1,5 +1,5 @@
 use crate::typing::definitions::Definitions;
-use crate::typing::environments::Environment;
+use crate::typing::environments::DefsWithEnv;
 use crate::typing::evaluation::Evaluate;
 use crate::typing::expression::CoreExpression;
 use crate::typing::read_back::{ReadBack, Rename};
@@ -44,6 +44,12 @@ impl<Te: Term> Type<Te> {
     pub fn wrapped(&self) -> &Te {
         &self.0
     }
+    pub fn into_typed<Ty: Term>(self) -> Typed<Ty, Te> {
+        Typed {
+            type_: Term::UNIVERSE,
+            term: self.0,
+        }
+    }
 }
 
 impl<'a, Te: Term + Force<'a>> Force<'a> for Type<Te> {
@@ -54,8 +60,8 @@ impl<'a, Te: Term + Force<'a>> Force<'a> for Type<Te> {
 
 impl<'a, Te: Term + Evaluate<'a>> Evaluate<'a> for Type<Te> {
     type ValueT = Type<Te::ValueT>;
-    fn evaluate(&self, defs: &Definitions<'a>, env: &Environment<'a, '_>) -> Self::ValueT {
-        Type(self.0.evaluate(defs, env))
+    fn evaluate(&self, defs_env: DefsWithEnv<'a, '_>) -> Self::ValueT {
+        Type(self.0.evaluate(defs_env))
     }
 }
 
@@ -119,17 +125,20 @@ impl<Ty: Term, Te: Term> Typed<Ty, Te> {
     pub fn into_wrapped(self) -> Te {
         self.term
     }
-    pub(crate) fn into_type(self) -> Type<Te> {
+    pub(crate) fn term_into_type(self) -> Type<Te> {
         Type(self.term)
+    }
+    pub(crate) fn type_into_type(self) -> Type<Ty> {
+        self.type_
     }
 }
 
 impl<'a, Ty: Term + Clone, Te: Term + Evaluate<'a>> Evaluate<'a> for Typed<Ty, Te> {
     type ValueT = Typed<Ty, Te::ValueT>;
-    fn evaluate(&self, defs: &Definitions<'a>, env: &Environment<'a, '_>) -> Self::ValueT {
+    fn evaluate(&self, defs_env: DefsWithEnv<'a, '_>) -> Self::ValueT {
         Typed {
             type_: self.type_.clone(),
-            term: self.term.evaluate(defs, env),
+            term: self.term.evaluate(defs_env),
         }
     }
 }

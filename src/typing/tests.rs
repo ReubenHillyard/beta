@@ -4,7 +4,7 @@ use crate::typing::abstraction::abstract_expression_empty;
 use crate::typing::ast::{EVariable, Expression, Index};
 use itertools::{Either, Itertools};
 
-fn parse_expr(source: &str) -> Option<Expression> {
+pub fn parse_expr(source: &str) -> Option<Expression> {
     let tokens: Vec<_> = lex(source).collect();
     let (tokens, errors): (Vec<_>, Vec<_>) = tokens.into_iter().partition_map(|t| match t {
         Ok(token) => Either::Left(token),
