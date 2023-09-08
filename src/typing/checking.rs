@@ -9,9 +9,9 @@ use crate::typing::type_wrapper::Term;
 use crate::typing::unification::unify_types;
 use crate::typing::value::{Closure, Type, Value};
 
-pub use crate::typing::environment::type_var;
+pub use crate::typing::environment::{type_ev, type_level, type_vv};
 
-/// Checks that an expression has a given type, and forms a [`TypedExpression`] from them.
+/// Checks that an [`Expression`] has a given [`Type`], and forms a [`TypedExpression`] from them.
 pub fn check_type<'a>(
     defs_ctx: &mut DefsWithCtx<'a, '_>,
     expr: &Expression<'a>,
@@ -51,6 +51,7 @@ pub fn check_type<'a>(
     }
 }
 
+/// Checks that an [`Expression`] is a type, and forms a [`TypeExpression`] from it.
 pub fn check_is_type<'a>(
     defs_ctx: &mut DefsWithCtx<'a, '_>,
     expr: &Expression<'a>,
@@ -58,7 +59,7 @@ pub fn check_is_type<'a>(
     check_type(defs_ctx, expr, &Type::UNIVERSE).map(type_wrapper::Typed::term_into_type)
 }
 
-/// Synthesizes a type for an expression, and forms a [`TypedExpression`] from them.
+/// Synthesizes a [`Type`] for an [`Expression`], and forms a [`TypedExpression`] from them.
 pub fn synth_type<'a>(
     defs_ctx: &mut DefsWithCtx<'a, '_>,
     expr: &Expression<'a>,
@@ -71,7 +72,7 @@ pub fn synth_type<'a>(
             Ok(defs_ctx.add_meta(type_))
         }
         Variable(ev) => Ok(TypedExpression::create_typed(
-            type_var(defs_ctx, *ev),
+            type_ev(defs_ctx, *ev),
             CoreExpression::Variable(*ev),
         )),
         PiType {

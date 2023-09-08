@@ -1,3 +1,5 @@
+//! Functions for producing abstract syntax from concrete syntax.
+
 use crate::parser::cst;
 use crate::typing::ast::{EVariable, Expression, File, Index};
 

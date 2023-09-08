@@ -4,6 +4,9 @@ use crate::typing::environments::DefsWithCtx;
 use crate::typing::value::{Type, TypedValue};
 
 /// Attempts to unify two [`TypedValue`]s of a shared [`Type`].
+///
+/// Requires that `lhs` and `rhs` are valid well-typed terms in context of `defs_ctx`, and that they
+/// have the same type.
 pub fn unify<'a>(
     defs_ctx: &mut DefsWithCtx<'a, '_>,
     lhs: &TypedValue<'a>,
@@ -18,6 +21,8 @@ pub fn unify<'a>(
 }
 
 /// Attempts to unify two [`Type`]s.
+///
+/// Requires that `lhs` and `rhs` are valid types in context of `defs_ctx`.
 pub fn unify_types<'a>(
     defs_ctx: &mut DefsWithCtx<'a, '_>,
     lhs: &Type<'a>,

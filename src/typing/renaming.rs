@@ -1,3 +1,5 @@
+//! An implementor of trait [`Rename`].
+
 use crate::typing::ast::Index;
 use crate::typing::definitions::{Definitions, MetaVar};
 use crate::typing::environment::{level_to_index_with_ctx_len, Level};

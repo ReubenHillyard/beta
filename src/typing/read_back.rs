@@ -1,4 +1,4 @@
-//! A function for reading back [`Value`]s into [`CoreExpression`]s.
+//! Functions and traits for reading back values as expressions.
 
 use crate::typing::ast::{EVariable, Index};
 use crate::typing::environment::level_to_index_with_ctx_len;
@@ -7,9 +7,16 @@ use crate::typing::expression::CoreExpression;
 use crate::typing::type_wrapper::Term;
 use crate::typing::value::{Level, Neutral, Principal, VVariable, Value};
 
+/// A valueless type, used in place of Rust's poorly-supported [`!`] type.
+///
+/// An expression of type [`Void`] can be matched upon to obtain an expression of any type.
 #[derive(Debug)]
 pub(crate) enum Void {}
 
+/// Reads back a value into an expression in a context of a given length.
+///
+/// Requires `ctx_len` is the length of the context from which `read_back_with_ctx_len` is called,
+/// and that `rb` is a valid value in that context.
 pub(crate) fn read_back_with_ctx_len<'a, RB: ReadBack<'a>>(
     defs: &Definitions<'a>,
     ctx_len: usize,
@@ -21,8 +28,12 @@ pub(crate) fn read_back_with_ctx_len<'a, RB: ReadBack<'a>>(
     }
 }
 
+/// A trait for values that can be read back as expressions.
 pub(crate) trait ReadBack<'a> {
+    /// The expression type associated to `Self`.
     type ExprT: Term;
+
+    /// Reads back `self` using `ren` to rename levels and meta-variables.
     fn read_back<Ren: Rename<'a>>(
         &self,
         defs: &Definitions<'a>,
@@ -86,11 +97,21 @@ impl<'a> ReadBack<'a> for Neutral<'a> {
     }
 }
 
+/// A trait for renaming levels and meta-variables.
 pub(crate) trait Rename<'a>: Copy {
+    /// The error type returned on failure to rename.
     type Err;
+
+    /// Produces a fresh variable.
     fn fresh_var(self) -> Value<'a>;
+
+    /// Lifts `self` to a context with one more variable.
     fn lift(self) -> Self;
+
+    /// Renames a [`Level`] to an [`Index`] or fails.
     fn rename_level(self, level: Level) -> Result<Index, Self::Err>;
+
+    /// Renames a [`MetaVar`] to a [`CoreExpression`] or fails.
     fn rename_meta(
         self,
         defs: &Definitions<'a>,

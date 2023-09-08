@@ -17,10 +17,16 @@ pub struct Index {
 }
 
 impl Index {
+    /// Creates an [`Index`] from a `usize`.
+    ///
+    /// Requires that `index` is the de-Bruijn index of a variable in the context from which
+    /// `create_index` is called.
     pub(crate) fn create_index(index: usize) -> Index {
         Index { index }
     }
-    pub(crate) fn get_inner(self) -> usize {
+
+    /// Extracts the `usize` from an [`Index`].
+    pub(crate) fn _get_inner(self) -> usize {
         self.index
     }
 }
@@ -38,9 +44,15 @@ pub struct Level {
 }
 
 impl Level {
+    /// Creates an [`Level`] from a `usize`.
+    ///
+    /// Requires that `level` is the de-Bruijn level of a variable in the context from which
+    /// `create_level` is called.
     pub(crate) fn create_level(level: usize) -> Level {
         Level { level }
     }
+
+    /// Extracts the `usize` from a [`Level`]
     pub(crate) fn get_inner(self) -> usize {
         self.level
     }
@@ -53,6 +65,9 @@ impl Display for Level {
 }
 
 /// Converts a [`Level`] to the corresponding [`Index`].
+///
+/// Requires `ctx_len` is the length of the context from which `level_to_index_with_ctx_len` is
+/// called, and that `level` is a valid de-Bruijn level in that context.
 pub(crate) fn level_to_index_with_ctx_len(ctx_len: usize, level: Level) -> Index {
     Index {
         index: {
@@ -63,6 +78,8 @@ pub(crate) fn level_to_index_with_ctx_len(ctx_len: usize, level: Level) -> Index
 }
 
 /// Evaluates an [`EVariable`] to a [`Value`].
+///
+/// Requires `ev` is a valid variable in environment of `defs_env`.
 pub(crate) fn evaluate_ev<'a>(defs_env: DefsWithEnv<'a, '_>, ev: &EVariable<'a>) -> Value<'a> {
     use EVariable::*;
     match ev {
@@ -91,13 +108,41 @@ pub(crate) fn evaluate_ev<'a>(defs_env: DefsWithEnv<'a, '_>, ev: &EVariable<'a>)
     }
 }
 
-/// Creates a [`TypedExpression`] from an [`EVariable`].
-pub fn type_var<'a>(defs_ctx: &DefsWithCtx<'a, '_>, ev: EVariable<'a>) -> Type<'a> {
+/// Gets the [`Type`] of an [`EVariable`].
+///
+/// Requires `ev` is a valid variable in context of `defs_ctx`.
+pub fn type_ev<'a>(defs_ctx: &DefsWithCtx<'a, '_>, ev: EVariable<'a>) -> Type<'a> {
     use EVariable::*;
     match ev {
         Global(name) => defs_ctx.defs.lookup_global(name).get_type().clone(),
         Local(Index { index }) => defs_ctx.ctx.0.into_iter().nth(index).unwrap().clone(),
     }
+}
+
+/// Gets the [`Type`] of a [`VVariable`].
+///
+/// Requires `vv` is a valid variable in context of `defs_ctx`.
+pub fn type_vv<'a>(defs_ctx: &DefsWithCtx<'a, '_>, vv: VVariable<'a>) -> Type<'a> {
+    use VVariable::*;
+    match vv {
+        Global(name) => defs_ctx.defs.lookup_global(name).get_type().clone(),
+        Local(Level { level }) => {
+            let ctx_len = defs_ctx.ctx.len();
+            assert!(level < ctx_len, "level out of range");
+            let index = (ctx_len - 1) - level;
+            defs_ctx.ctx.0.into_iter().nth(index).unwrap().clone()
+        }
+    }
+}
+
+/// Gets the [`Type`] of a [`Level`].
+///
+/// Requires `level` is a valid de-Bruijn level in context of `defs_ctx`.
+pub fn type_level<'a>(defs_ctx: &DefsWithCtx<'a, '_>, level: Level) -> Type<'a> {
+    let ctx_len = defs_ctx.ctx.len();
+    assert!(level.level < ctx_len, "level out of range");
+    let index = (ctx_len - 1) - level.level;
+    defs_ctx.ctx.0.into_iter().nth(index).unwrap().clone()
 }
 
 #[derive(Copy, Clone)]
@@ -149,26 +194,51 @@ impl<'a, 'b> IntoIterator for &'b ContextInner<'a, 'b> {
 pub struct Context<'a, 'b>(ContextInner<'a, 'b>);
 
 impl<'a> Context<'a, '_> {
+    /// The empty [`Context`].
     pub const EMPTY: Context<'static, 'static> = Context(ContextInner::Empty);
+
+    /// Extends the [`Context`] with a variable of given [`Type`].
+    ///
+    /// Requires `type_` is a valid [`Type`] in context of `self`.
     pub fn extend<'b>(&'b self, type_: &'b Type<'a>) -> Context<'a, 'b> {
         Context(ContextInner::Extend {
             parent: self,
             type_,
         })
     }
-    pub(crate) fn len(&self) -> usize {
+
+    /// Queries whether the [`Context`] is empty.
+    pub fn is_empty(&self) -> bool {
+        matches!(self.0, ContextInner::Empty)
+    }
+
+    /// Obtains the number of variables in the [`Context`].
+    pub fn len(&self) -> usize {
         self.0.into_iter().count()
     }
+
+    /// Obtains a fresh variable with respect to the [`Context`].
+    ///
+    /// The fresh variable is only a valid value in an extended [`Context`].
     pub(crate) fn fresh_var(&self) -> Value<'a> {
         Value::Neutral(Neutral::Principal(Principal::Variable(VVariable::Local(
             Level { level: self.len() },
         ))))
     }
+
+    /// Obtains a fresh variable with respect to the [`Context`] whose length is given.
+    ///
+    /// Requires `ctx_len` is the length of the context from which `fresh_var_from_ctx_len` is
+    /// called.
+    ///
+    /// The fresh variable is only a valid value in an extended [`Context`].
     pub(crate) fn fresh_var_from_ctx_len(ctx_len: usize) -> Value<'a> {
         Value::Neutral(Neutral::Principal(Principal::Variable(VVariable::Local(
             Level { level: ctx_len },
         ))))
     }
+
+    /// Calls the [`CoreExpression`] with every variable in the [`Context`].
     pub fn call(&self, mut expr: CoreExpression<'a>) -> CoreExpression<'a> {
         let count = self.len();
         for level in 0..count {
@@ -182,7 +252,9 @@ impl<'a> Context<'a, '_> {
     }
 }
 
-impl<'a, 'b> DefsWithCtx<'a, 'b> {
+impl<'a> DefsWithCtx<'a, '_> {
+    /// Produces the [`Type`] of functions from values of variables in the [`Context`] to the
+    /// [`Type`].
     pub fn func_to(&self, ret_type: &Type<'a>) -> Type<'a> {
         let mut ctx_len = self.ctx.len();
         let mut ret_type_expr = read_back_with_ctx_len(self.defs, ctx_len, ret_type);
@@ -225,10 +297,14 @@ enum EnvironmentInner<'a, 'b> {
 pub struct Environment<'a, 'b>(EnvironmentInner<'a, 'b>);
 
 impl<'a> Environment<'a, '_> {
+    /// The empty [`Environment`].
     pub const EMPTY: Environment<'static, 'static> = Environment(EnvironmentInner::FromCtxLen(0));
+
+    /// Obtains the [`Environment`] associated to the [`Context`].
     pub fn from_context<'b>(ctx: &'b Context<'a, 'b>) -> Environment<'a, 'b> {
         Environment(EnvironmentInner::FromCtxLen(ctx.len()))
     }
+
     fn to_flat_environment(&self) -> FlatEnvironment<'a> {
         use EnvironmentInner::*;
         match self.0 {
@@ -265,16 +341,31 @@ impl<'a, E: Evaluate<'a> + Display> Display for Closure<'a, E> {
 }
 
 impl<'a, E: Evaluate<'a>> Closure<'a, E> {
+    /// Creates a closure with the given body in the given [`Environment`].
+    ///
+    /// Requires that `body` is a valid expression in the environment obtained by extending `env`
+    /// with an argument of the parameter type.
     pub(crate) fn new_in_env(env: &Environment<'a, '_>, body: E) -> Closure<'a, E> {
         Closure {
             env: env.to_flat_environment(),
             body,
         }
     }
+
+    /// Creates a closure with the given body in the [`Environment`] associated to the given
+    /// [`Context`].
+    ///
+    /// Requires that `body` is a valid expression in the context obtained by extending `ctx` with a
+    /// variable of the parameter type.
     pub(crate) fn new_in_ctx(ctx: &Context<'a, '_>, body: E) -> Closure<'a, E> {
         Closure::new_in_env(&Environment::from_context(ctx), body)
     }
+
     /// Calls the closure with an argument.
+    ///
+    /// Requires that `Lambda { self }` and `val` are valid values in the context from which `call`
+    /// is called, and that, in that context, it is well-typed for `Lambda { self }` to be called
+    /// with `val`.
     pub(crate) fn call(&self, defs: &Definitions<'a>, val: &Value<'a>) -> E::ValueT {
         self.body.evaluate(DefsWithEnv {
             defs,

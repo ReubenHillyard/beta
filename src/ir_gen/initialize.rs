@@ -1,235 +1,126 @@
-use crate::ir_gen::build::CompilerWithBuilder;
-use crate::ir_gen::compile::Compiler;
-use crate::ir_gen::functions::{CloneFnArgs, DestroyFnArgs, FunctionWithArgs, SizeFnArgs};
-use inkwell::values::CallableValue;
+use crate::ir_gen::values::names::{EMPTY_CAPTURES_NAME, MEMCPY_NAME};
+use crate::ir_gen::values::tags::args::{CapturesCloneFnArgs, CapturesDestroyFnArgs};
+use crate::ir_gen::values::tags::builtin_type::BuiltinType;
+use crate::ir_gen::values::tags::function::NoopFunction;
+use crate::ir_gen::values::tags::structure::{FieldOf, Structure};
+use crate::ir_gen::values::tags::tag;
+use crate::ir_gen::Compiler;
 
 impl<'ctx> Compiler<'ctx> {
+    /// Initializes a given [`Compiler`] with the appropriate global values.
     pub(super) fn initialize(&mut self) {
-        self.add_noop_captures_clone_fn();
-        self.add_noop_captures_destroy_fn();
-        self.add_universe();
-        self.add_pi();
+        self.declare_function(MEMCPY_NAME, self.memcpy_type());
+        self.add_noop_fn(tag::DestroyFn);
+        self.add_noop_fn(tag::CapturesCloneFn);
+        self.add_noop_fn(tag::CapturesDestroyFn);
+        self.add_delegating_builtin(tag::Universe);
+        self.add_delegating_builtin(tag::Pi);
+        self.add_global(EMPTY_CAPTURES_NAME, &self.empty_captures_constant());
     }
-    fn add_universe(&mut self) {
-        self.add_universe_size_fn();
-        self.add_universe_clone_fn();
-        self.add_universe_destroy_fn();
 
-        self.add_global("Type", self.universe_constant());
-    }
-    fn add_pi(&mut self) {
-        self.add_pi_size_fn();
-        self.add_pi_clone_fn();
-        self.add_pi_destroy_fn();
+    /// Adds a built-in type whose special members all delegate.
+    ///
+    /// Requires `b` is the tag of a built-in type whose:
+    /// * Size function delegates to a field [`tag::TotalSize`].
+    /// * Clone function copies the static part and then delegates to a field
+    /// [`tag::CapturesCloneFn`].
+    /// * Destroy function delegates to a field [`tag::CapturesDestroyFn`].
+    fn add_delegating_builtin<B: BuiltinType>(&mut self, b: B)
+        where
+            B: Structure,
+            tag::TotalSize: FieldOf<B, Ty=tag::Usize>,
+            tag::CapturesCloneFn: FieldOf<B, Ty=tag::CapturesCloneFn>,
+            tag::CapturesDestroyFn: FieldOf<B, Ty=tag::CapturesDestroyFn>,
+            tag::Captures: FieldOf<B, Ty=tag::Captures>,
+    {
+        self.add_delegating_size_fn(b);
+        self.add_delegating_clone_fn(b);
+        self.add_delegating_destroy_fn(b);
 
-        self.add_global("Pi", self.pi_constant());
+        self.add_global(B::NAME, &self.compile_builtin_type(b));
     }
-    fn add_universe_size_fn(&mut self) {
-        let mut builder = self.context.create_builder();
-        let FunctionWithArgs {
-            args: SizeFnArgs { value_ptr, .. },
-            ..
-        } = CompilerWithBuilder {
-            compiler: self,
-            builder: &mut builder,
-        }
-            .add_size_function("universe_size");
 
-        let value_ptr = builder.build_pointer_cast(value_ptr.0, self.universe_ptr_type(), "");
-        // get argument pointer of correct type
-        let size_ptr = builder.build_struct_gep(value_ptr, 3, "").unwrap();
-        // get pointer to size
-        let size = builder.build_load(size_ptr, "");
-        // get size
-        builder.build_return(Some(&size));
-        // return size of value
+    /// Adds a delegating size function for a built-in type.
+    ///
+    /// Requires `b` is the tag of a built-in type whose size function delegates to a field
+    /// [`tag::TotalSize`].
+    fn add_delegating_size_fn<B: BuiltinType>(&mut self, b: B)
+        where
+            B: Structure,
+            tag::TotalSize: FieldOf<B, Ty=tag::Usize>,
+    {
+        let mut function = self.add_function(tag::SizeFn, B::get_name_of(tag::SizeFn));
+        let arg_ptr = function.args.arg_ptr.as_ptr_to(b);
+        let total_size = function
+            .compiler_builder
+            .build_load_field(arg_ptr, tag::TotalSize);
+        function.build_return_usize(total_size);
     }
-    fn add_universe_clone_fn(&mut self) {
-        let mut builder = self.context.create_builder();
-        let FunctionWithArgs {
-            args: CloneFnArgs {
-                src_ptr, dest_ptr, ..
+
+    /// Adds a delegating clone function for a built-in type.
+    ///
+    /// Requires `b` is the tag of a built-in type whose clone function copies the static part and
+    /// then delegates to a field [`tag::CapturesCloneFn`].
+    fn add_delegating_clone_fn<B: BuiltinType>(&mut self, b: B)
+        where
+            B: Structure,
+            tag::CapturesCloneFn: FieldOf<B, Ty=tag::CapturesCloneFn>,
+            tag::Captures: FieldOf<B, Ty=tag::Captures>,
+    {
+        let mut function = self.add_function(tag::CloneFn, B::get_name_of(tag::CloneFn));
+        let src_ptr = function.args.src_ptr.as_ptr_to(b);
+        let dest_ptr = function.args.dest_ptr.as_ptr_to(b);
+
+        function
+            .compiler_builder
+            .build_copy_static_part(src_ptr, dest_ptr);
+
+        let captures_clone_function = function
+            .compiler_builder
+            .build_load_field(src_ptr, tag::CapturesCloneFn);
+        let captures_ptr = function.compiler_builder.build_get_captures_ptr(src_ptr);
+        let dest_ptr = function.compiler_builder.build_get_captures_ptr(dest_ptr);
+
+        function.compiler_builder.build_call_fn(
+            captures_clone_function,
+            CapturesCloneFnArgs {
+                captures_ptr,
+                dest_ptr,
             },
-            ..
-        } = CompilerWithBuilder {
-            compiler: self,
-            builder: &mut builder,
-        }
-            .add_clone_function("universe_clone");
-
-        let src_ptr = builder.build_pointer_cast(src_ptr.0, self.universe_ptr_type(), "");
-        // get source pointer of correct type
-        let src_captures_clone_ptr = builder.build_struct_gep(src_ptr, 4, "").unwrap();
-        let src_captures_clone = builder
-            .build_load(src_captures_clone_ptr, "")
-            .into_pointer_value();
-        let src_captures_clone = CallableValue::try_from(src_captures_clone).unwrap();
-        // get pointer to source captures clone function
-        let src_captures_ptr = builder.build_struct_gep(src_ptr, 6, "").unwrap();
-        let src_captures_ptr =
-            builder.build_pointer_cast(src_captures_ptr, self.byte_ptr_type(), "");
-        // get pointer to source captures
-
-        let dest_ptr = builder.build_pointer_cast(dest_ptr.0, self.universe_ptr_type(), "");
-        // get destination pointer of correct type
-        let dest_captures_ptr = builder.build_struct_gep(dest_ptr, 6, "").unwrap();
-        let dest_captures_ptr =
-            builder.build_pointer_cast(dest_captures_ptr, self.byte_ptr_type(), "");
-        // get pointer to destination captures
-
-        let src_without_captures = builder.build_load(src_ptr, "");
-        // load non-captures part of source
-        builder.build_store(dest_ptr, src_without_captures);
-        // store as non-captures part of destination
-        builder.build_call(
-            src_captures_clone,
-            &[src_captures_ptr.into(), dest_captures_ptr.into()],
-            "",
         );
-        // clone captures
 
-        builder.build_return(None);
+        function.build_return_void();
     }
-    fn add_universe_destroy_fn(&mut self) {
-        let mut builder = self.context.create_builder();
-        let FunctionWithArgs {
-            args: DestroyFnArgs { value_ptr, .. },
-            ..
-        } = CompilerWithBuilder {
-            compiler: self,
-            builder: &mut builder,
-        }
-            .add_destroy_function("universe_destroy");
 
-        let value_ptr = builder.build_pointer_cast(value_ptr.0, self.universe_ptr_type(), "");
-        // get argument pointer of correct type
-        let arg_captures_destroy_ptr = builder.build_struct_gep(value_ptr, 5, "").unwrap();
-        let arg_captures_destroy = builder
-            .build_load(arg_captures_destroy_ptr, "")
-            .into_pointer_value();
-        let arg_captures_destroy = CallableValue::try_from(arg_captures_destroy).unwrap();
-        // get pointer to argument captures destroy function
-        let arg_captures_ptr = builder.build_struct_gep(value_ptr, 6, "").unwrap();
-        let arg_captures_ptr =
-            builder.build_pointer_cast(arg_captures_ptr, self.byte_ptr_type(), "");
-        // get pointer to argument captures
+    /// Adds a delegating destroy function for a built-in type.
+    ///
+    /// Requires `b` is the tag of a built-in type whose destroy function delegates to a field
+    /// [`tag::CapturesDestroyFn`].
+    fn add_delegating_destroy_fn<B: BuiltinType>(&mut self, b: B)
+        where
+            B: Structure,
+            tag::CapturesDestroyFn: FieldOf<B, Ty=tag::CapturesDestroyFn>,
+            tag::Captures: FieldOf<B, Ty=tag::Captures>,
+    {
+        let mut function = self.add_function(tag::DestroyFn, B::get_name_of(tag::DestroyFn));
+        let arg_ptr = function.args.arg_ptr.as_ptr_to(b);
 
-        builder.build_call(arg_captures_destroy, &[arg_captures_ptr.into()], "");
-        // destroy captures
+        let captures_destroy_function = function
+            .compiler_builder
+            .build_load_field(arg_ptr, tag::CapturesDestroyFn);
+        let captures_ptr = function.compiler_builder.build_get_captures_ptr(arg_ptr);
 
-        builder.build_return(None);
-    }
-    fn add_pi_size_fn(&mut self) {
-        let mut builder = self.context.create_builder();
-        let FunctionWithArgs {
-            args: SizeFnArgs { value_ptr, .. },
-            ..
-        } = CompilerWithBuilder {
-            compiler: self,
-            builder: &mut builder,
-        }
-            .add_size_function("pi_size");
-
-        let value_ptr = builder.build_pointer_cast(value_ptr.0, self.pi_ptr_type(), "");
-        // get argument pointer of correct type
-        let size_ptr = builder.build_struct_gep(value_ptr, 2, "").unwrap();
-        // get pointer to size
-        let size = builder.build_load(size_ptr, "");
-        // get size
-        builder.build_return(Some(&size));
-        // return size of value
-    }
-    fn add_pi_clone_fn(&mut self) {
-        let mut builder = self.context.create_builder();
-        let FunctionWithArgs {
-            args: CloneFnArgs {
-                src_ptr, dest_ptr, ..
-            },
-            ..
-        } = CompilerWithBuilder {
-            compiler: self,
-            builder: &mut builder,
-        }
-            .add_clone_function("pi_clone");
-
-        let src_ptr = builder.build_pointer_cast(src_ptr.0, self.pi_ptr_type(), "");
-        // get source pointer of correct type
-        let src_captures_clone_ptr = builder.build_struct_gep(src_ptr, 3, "").unwrap();
-        let src_captures_clone = builder
-            .build_load(src_captures_clone_ptr, "")
-            .into_pointer_value();
-        let src_captures_clone = CallableValue::try_from(src_captures_clone).unwrap();
-        // get pointer to source captures clone function
-        let src_captures_ptr = builder.build_struct_gep(src_ptr, 5, "").unwrap();
-        let src_captures_ptr =
-            builder.build_pointer_cast(src_captures_ptr, self.byte_ptr_type(), "");
-        // get pointer to source captures
-
-        let dest_ptr = builder.build_pointer_cast(dest_ptr.0, self.pi_ptr_type(), "");
-        // get destination pointer of correct type
-        let dest_captures_ptr = builder.build_struct_gep(dest_ptr, 5, "").unwrap();
-        let dest_captures_ptr =
-            builder.build_pointer_cast(dest_captures_ptr, self.byte_ptr_type(), "");
-        // get pointer to destination captures
-
-        let src_without_captures = builder.build_load(src_ptr, "");
-        // load non-captures part of source
-        builder.build_store(dest_ptr, src_without_captures);
-        // store as non-captures part of destination
-        builder.build_call(
-            src_captures_clone,
-            &[src_captures_ptr.into(), dest_captures_ptr.into()],
-            "",
+        function.compiler_builder.build_call_fn(
+            captures_destroy_function,
+            CapturesDestroyFnArgs { captures_ptr },
         );
-        // clone captures
 
-        builder.build_return(None);
+        function.build_return_void();
     }
-    fn add_pi_destroy_fn(&mut self) {
-        let mut builder = self.context.create_builder();
-        let FunctionWithArgs {
-            args: DestroyFnArgs { value_ptr, .. },
-            ..
-        } = CompilerWithBuilder {
-            compiler: self,
-            builder: &mut builder,
-        }
-            .add_destroy_function("pi_destroy");
 
-        let value_ptr = builder.build_pointer_cast(value_ptr.0, self.pi_ptr_type(), "");
-        // get argument pointer of correct type
-        let arg_captures_destroy_ptr = builder.build_struct_gep(value_ptr, 4, "").unwrap();
-        let arg_captures_destroy = builder
-            .build_load(arg_captures_destroy_ptr, "")
-            .into_pointer_value();
-        let arg_captures_destroy = CallableValue::try_from(arg_captures_destroy).unwrap();
-        // get pointer to argument captures destroy function
-        let arg_captures_ptr = builder.build_struct_gep(value_ptr, 5, "").unwrap();
-        let arg_captures_ptr =
-            builder.build_pointer_cast(arg_captures_ptr, self.byte_ptr_type(), "");
-        // get pointer to argument captures
-
-        builder.build_call(arg_captures_destroy, &[arg_captures_ptr.into()], "");
-        // destroy captures
-
-        builder.build_return(None);
-    }
-    fn add_noop_captures_clone_fn(&mut self) {
-        let type_ = self.captures_clone_fn_type();
-        let mut builder = self.context.create_builder();
-        CompilerWithBuilder {
-            compiler: self,
-            builder: &mut builder,
-        }
-            .add_const_function("noop_captures_clone", type_, None);
-    }
-    fn add_noop_captures_destroy_fn(&mut self) {
-        let type_ = self.captures_destroy_fn_type();
-        let mut builder = self.context.create_builder();
-        CompilerWithBuilder {
-            compiler: self,
-            builder: &mut builder,
-        }
-            .add_const_function("noop_captures_destroy", type_, None);
+    /// Adds a function that immediately returns.
+    fn add_noop_fn<F: NoopFunction>(&mut self, _func_type: F) {
+        let type_ = F::fn_type(self);
+        self.add_const_function(F::NOOP_NAME, type_, None);
     }
 }

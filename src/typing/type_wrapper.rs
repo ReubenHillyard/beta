@@ -1,3 +1,5 @@
+//! Wrappers for terms either of known type, or known to be types.
+
 use crate::typing::definitions::Definitions;
 use crate::typing::environments::DefsWithEnv;
 use crate::typing::evaluation::Evaluate;
@@ -7,6 +9,7 @@ use crate::typing::value::{Closure, Force, Value};
 use std::fmt;
 use std::fmt::{Display, Formatter};
 
+/// A trait for terms.
 pub trait Term {
     const UNIVERSE: Self;
 }
@@ -30,6 +33,7 @@ impl<Ty: Term, Te: Term> Term for Typed<Ty, Te> {
     };
 }
 
+/// A term known to be a type.
 #[derive(Clone, Debug)]
 pub struct Type<Te: Term>(Te);
 
@@ -40,10 +44,12 @@ impl<Te: Term + Display> Display for Type<Te> {
 }
 
 impl<Te: Term> Type<Te> {
-    pub const UNIVERSE: Type<Te> = Type(Te::UNIVERSE);
+    /// Obtains a reference to the underlying term.
     pub fn wrapped(&self) -> &Te {
         &self.0
     }
+
+    /// Demotes a [`Type`] to a [`Typed`].
     pub fn into_typed<Ty: Term>(self) -> Typed<Ty, Te> {
         Typed {
             type_: Term::UNIVERSE,
@@ -77,6 +83,11 @@ impl<'a, Te: Term + ReadBack<'a>> ReadBack<'a> for Type<Te> {
 }
 
 impl<'a> Type<CoreExpression<'a>> {
+    /// Builds a pi type.
+    ///
+    /// Requires that `tparam_type` is a valid type in the context from which `pi_type` is called,
+    /// and that `ret_type` is a valid type in that context extended with a variable of type
+    /// `tparam_type`.
     pub fn pi_type(
         tparam_type: Type<CoreExpression<'a>>,
         ret_type: Type<CoreExpression<'a>>,
@@ -89,6 +100,11 @@ impl<'a> Type<CoreExpression<'a>> {
 }
 
 impl<'a> Type<Value<'a>> {
+    /// Builds a pi type.
+    ///
+    /// Requires that `tparam_type` is a valid type in the context from which `pi_type` is called,
+    /// and that `tclosure` returns a valid type in that context extended with a variable of type
+    /// `tparam_type`, when called with that variable.
     pub fn pi_type(
         param_type: Type<Value<'a>>,
         tclosure: Closure<'a, Type<CoreExpression<'a>>>,
@@ -100,6 +116,7 @@ impl<'a> Type<Value<'a>> {
     }
 }
 
+/// A term of a known type.
 #[derive(Clone, Debug)]
 pub struct Typed<Ty: Term, Te: Term> {
     type_: Type<Ty>,
@@ -113,22 +130,38 @@ impl<Ty: Term + Display, Te: Term + Display> Display for Typed<Ty, Te> {
 }
 
 impl<Ty: Term, Te: Term> Typed<Ty, Te> {
+    /// Creates a [`Typed`] from a type and a term of that type.
+    ///
+    /// Requires that `type_` is a valid type in the context from which `create_typed` is called,
+    /// and that `term` is a valid term of that type in that context.
     pub(crate) fn create_typed(type_: Type<Ty>, term: Te) -> Typed<Ty, Te> {
         Typed { type_, term }
     }
+
+    /// Obtains a reference to the type.
     pub fn get_type(&self) -> &Type<Ty> {
         &self.type_
     }
+
+    /// Obtains a reference to the term.
     pub fn get_term(&self) -> &Te {
         &self.term
     }
+
+    /// Obtains the wrapped term.
     pub fn into_wrapped(self) -> Te {
         self.term
     }
+
+    /// Obtains the wrapped term as a [`Type`].
+    ///
+    /// Requires that the term denotes a type in the context from which `term_into_type` is called.
     pub(crate) fn term_into_type(self) -> Type<Te> {
         Type(self.term)
     }
-    pub(crate) fn type_into_type(self) -> Type<Ty> {
+
+    /// Obtains the type.
+    pub fn type_into_type(self) -> Type<Ty> {
         self.type_
     }
 }

@@ -59,6 +59,7 @@ impl Display for Neutral<'_> {
 }
 
 impl<'a> Neutral<'a> {
+    /// Obtains the unknown that is blocking computation.
     pub fn principal(&self) -> Principal<'a> {
         use Neutral::*;
         match self {
@@ -68,6 +69,7 @@ impl<'a> Neutral<'a> {
     }
 }
 
+/// A variable or meta-variable.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Principal<'a> {
     Variable(VVariable<'a>),
@@ -85,6 +87,7 @@ impl<'a> Display for Principal<'a> {
 }
 
 impl<'a> Principal<'a> {
+    /// Queries whether a [`Principal`] is a meta-variable.
     pub fn is_meta(&self) -> bool {
         matches!(self, Principal::MetaVariable(_))
     }

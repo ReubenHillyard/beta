@@ -1,4 +1,4 @@
-//! Functions for evaluating [`TypedExpression`]s to [`TypedValue`]s.
+//! A trait for evaluating expressions to values.
 
 use crate::typing::definitions::{Definitions, DefsWithEnv};
 use crate::typing::environment::evaluate_ev;
@@ -6,8 +6,14 @@ use crate::typing::expression::CoreExpression;
 use crate::typing::type_wrapper::Term;
 use crate::typing::value::{Closure, Neutral, Value};
 
+/// A trait for expressions that can be evaluated to values.
 pub trait Evaluate<'a> {
     type ValueT: Term;
+
+    /// Evaluates `self` in environment of `defs_env`.
+    ///
+    /// Requires `self` is a valid expression in environment of `defs_env`. Particularly, `self`
+    /// must be well-typed.
     fn evaluate(&self, defs_env: DefsWithEnv<'a, '_>) -> Self::ValueT;
 }
 
@@ -39,6 +45,9 @@ impl<'a> Evaluate<'a> for CoreExpression<'a> {
 }
 
 /// Call a function with an argument.
+///
+/// Requires `func` and `arg` are valid values in the context from which `do_apply` is called,
+/// and that, in that context, it is well-typed for `func` can be called with `arg`.
 pub(crate) fn do_apply<'a>(defs: &Definitions<'a>, func: &Value<'a>, arg: &Value<'a>) -> Value<'a> {
     match func {
         Value::Lambda { closure } => closure.call(defs, arg),

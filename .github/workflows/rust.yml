@@ -17,32 +17,35 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
-    - uses: actions/cache@v3
-      with:
-        path: |
-          ~/.cargo/bin/
-          ~/.cargo/registry/index/
-          ~/.cargo/registry/cache/
-          ~/.cargo/git/db/
-          target/
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-    - name: Install llvm-14
-      run: sudo apt install llvm-14
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
-    - name: Make docs
-      run: cargo doc --no-deps
-    - name: Fix file permissions
-      shell: sh
-      run: chmod -c -R +rX "target/doc"
-    - name: Add index
-      run: echo "<meta http-equiv=\"refresh\" content=\"0; url=beta\">" > target/doc/index.html
-    - name: Upload GitHub Pages artifact
-      uses: actions/upload-pages-artifact@v1.0.9
-      with:
-        path: target/doc/
-    - name: Deploy GitHub Pages site
-      uses: actions/deploy-pages@v2.0.2
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Install llvm-16
+        run: wget https://apt.llvm.org/llvm.sh 
+          && chmod +x llvm.sh 
+          && sudo ./llvm.sh 16 
+          && sudo apt install libpolly-16-dev libz-dev
+      - name: Build
+        run: cargo build --verbose
+      - name: Run tests
+        run: cargo test --verbose
+      - name: Make docs
+        run: cargo doc --no-deps
+      - name: Fix file permissions
+        shell: sh
+        run: chmod -c -R +rX "target/doc"
+      - name: Add index
+        run: echo "<meta http-equiv=\"refresh\" content=\"0; url=beta\">" > target/doc/index.html
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v1.0.9
+        with:
+          path: target/doc/
+      - name: Deploy GitHub Pages site
+        uses: actions/deploy-pages@v2.0.2

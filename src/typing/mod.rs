@@ -21,11 +21,10 @@ pub use type_error::*;
 /// Types representing the environments where typing or evaluation take place.
 pub mod environments {
     pub use super::definitions::*;
-    pub(crate) use crate::typing::environment::level_to_index_with_ctx_len;
     pub use crate::typing::environment::Context;
     pub use crate::typing::environment::Environment;
 }
 
 #[cfg(test)]
 #[doc(hidden)]
-mod tests;
+pub(crate) mod tests;
