@@ -93,6 +93,7 @@ mod grammar {
             rule opt_id() -> Option<&'a str>
                 = [Token::Identifier(id)] { Some(id) }
                 / [Token::Underscore] { None }
+
             rule expr() -> Expression<'a>
                 = (param:opt_id() [Token::DoubleArrow] ret_val:expr() {
                     Expression::Lambda {
@@ -119,13 +120,7 @@ mod grammar {
                         ret_type: Box::new(ret_type)
                     }
                 })
-                / (expr:core_expr() [Token::As] type_:core_expr() {
-                    Expression::Annotation {
-                        expr: Box::new(expr),
-                        type_: Box::new(type_),
-                    }
-                })
-                / (e:core_expr() { e })
+                / core_expr()
 
             rule core_expr() -> Expression<'a> = precedence!{
                 func:@ [Token::LParen] arg:expr() [Token::RParen] {
@@ -141,7 +136,12 @@ mod grammar {
                         ret_type: Box::new(ran),
                     }
                 }
-                --
+                expr:@ [Token::As] type_:expr() {
+                    Expression::Annotation {
+                        expr: Box::new(expr),
+                        type_: Box::new(type_),
+                    }
+                }
                 [Token::LParen] e:expr() [Token::RParen] { e }
                 [Token::Type] { Expression::Universe }
                 [Token::Underscore] { Expression::Underscore }
