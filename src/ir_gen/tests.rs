@@ -14,18 +14,20 @@ pub fn test_ir_gen() {
     let puts_type = i32_type.fn_type(&[str_type.into()], false);
     let zero_i32 = i32_type.const_zero();
 
-    let hello_world_str = compiler.context.const_string(b"Hello, World!", true);
-    let hello_world = compiler.add_global("hello_world", &hello_world_str);
-    let hello_world_ptr = hello_world.as_pointer_value();
-
     let puts = compiler.declare_function("puts", puts_type);
 
     let main_fn = compiler.add_main_function();
 
-    main_fn
+    let hello_world_str = main_fn
         .compiler_builder
         .builder
-        .build_call(puts, &[hello_world_ptr.into()], "");
+        .build_global_string_ptr("Hello, World!", "hello_world");
+
+    main_fn.compiler_builder.builder.build_call(
+        puts,
+        &[hello_world_str.as_pointer_value().into()],
+        "",
+    );
     main_fn
         .compiler_builder
         .builder

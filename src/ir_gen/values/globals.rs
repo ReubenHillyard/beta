@@ -14,7 +14,7 @@ impl<'ctx> Compiler<'ctx> {
         &mut self,
         name: &str,
         initializer: &impl BasicValue<'ctx>,
-    ) -> GlobalValue<'ctx> {
+    ) -> PtrValue<'ctx, Read, tag::Unknown> {
         let global =
             self.module
                 .add_global(initializer.as_basic_value_enum().get_type(), None, name);
@@ -22,7 +22,7 @@ impl<'ctx> Compiler<'ctx> {
         global.set_linkage(Linkage::Private);
         global.set_unnamed_address(UnnamedAddress::Global);
         global.set_constant(true);
-        global
+        PtrValue(global.as_pointer_value(), Read, tag::Unknown)
     }
 
     /// Obtains the initializer of an existing global value or fails.

@@ -1,9 +1,11 @@
 use crate::ir_gen::lambda::Lambda;
+use crate::ir_gen::values::tags::flow::Read;
 use crate::ir_gen::values::tags::tag;
+use crate::ir_gen::values::PtrValue;
 use crate::ir_gen::Compiler;
 use crate::typing::environments::Definitions;
 use crate::typing::value::{Neutral, Principal, TypedValue, VVariable, Value};
-use inkwell::values::{GlobalValue, StructValue};
+use inkwell::values::StructValue;
 
 impl<'ctx> Compiler<'ctx> {
     /// Creates a new global value.
@@ -16,7 +18,7 @@ impl<'ctx> Compiler<'ctx> {
         defs: &mut Definitions<'a>,
         name: &str,
         typed_value: &TypedValue<'a>,
-    ) -> GlobalValue<'ctx> {
+    ) -> PtrValue<'ctx, Read, tag::Unknown> {
         let initializer = self.compile_global_initializer(defs, typed_value);
         self.add_global(name, &initializer)
     }
