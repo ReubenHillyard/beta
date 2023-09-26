@@ -13,8 +13,8 @@ mod token {
         Underscore,
         #[token("as")]
         As,
-        #[token("let")]
-        Let,
+        #[token("def")]
+        Define,
         #[token("Type")]
         Type,
         #[regex("[a-zA-Z_][a-zA-Z_0-9]*")]

@@ -162,7 +162,7 @@ pub fn abstract_file<'a>(file: &cst::File<'a>) -> Result<File<'a>, Vec<NameError
     for decl in &file.declarations {
         use cst::Declaration::*;
         match decl {
-            LetDeclaration { name, value } => {
+            Definition { name, value } => {
                 let expr = match abstract_expression(&globals, &Names::Empty, value) {
                     Ok(expr) => expr,
                     Err(mut errs) => {

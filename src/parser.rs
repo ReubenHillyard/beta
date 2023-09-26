@@ -16,7 +16,7 @@ pub mod cst {
     /// Represents the concrete syntax of a declaration.
     #[derive(Debug)]
     pub enum Declaration<'a> {
-        LetDeclaration {
+        Definition {
             name: &'a str,
             value: Expression<'a>,
         },
@@ -152,10 +152,10 @@ mod grammar {
                 = expr()
 
             rule decl() -> Declaration<'a>
-                = [Token::Let] [Token::Identifier(name)] [Token::Equals]
+                = [Token::Define] [Token::Identifier(name)] [Token::Equals]
                     value:expr() [Token::Semicolon]
                 {
-                    Declaration::LetDeclaration {
+                    Declaration::Definition {
                         name,
                         value
                     }

@@ -4,12 +4,12 @@ use crate::commands::Arguments;
 use std::path::PathBuf;
 use std::process::Command;
 
-const TEST_SOURCE: &str = "let Nat = (A : Type) -> (A -> A) -> A -> A;
-let pow = (n : Nat) => (m : Nat) => (
+const TEST_SOURCE: &str = "def Nat = (A : Type) -> (A -> A) -> A -> A;
+def pow = (n : Nat) => (m : Nat) => (
     _ => n(_)(m(_))
 ) as Nat;
-let three = (A => f => a => f(f(f(a)))) as Nat;
-let nat_main = pow(three)(three);
+def three = (A => f => a => f(f(f(a)))) as Nat;
+def nat_main = pow(three)(three);
 ";
 
 #[test]
