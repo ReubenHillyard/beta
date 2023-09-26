@@ -42,6 +42,9 @@ impl MainArguments {
         })
     }
 
+    /// Runs the compiler on the given arguments.
+    ///
+    /// This is called from [`main`](crate::main).
     pub fn run(self) -> Result<(), String> {
         let tokens = self.lex()?;
 

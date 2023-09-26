@@ -1,5 +1,6 @@
 //! Types and functions for providing the command line interface.
 
+#[doc(hidden)]
 macro_rules! verbose_println {
     ($args:expr, $($msg:tt),*) => {
         if $args.verbose {

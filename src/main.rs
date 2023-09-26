@@ -14,6 +14,7 @@ pub mod lexer;
 pub mod parser;
 pub mod typing;
 
+/// Parses command line arguments and runs the compiler on them.
 pub fn main() {
     let args = Arguments::parse();
     let args = MainArguments::new(args);
