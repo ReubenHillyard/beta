@@ -223,7 +223,7 @@ impl<'ctx> Compiler<'ctx> {
         if ret_type.is_some() {
             self.add_enum_attribute(function, AttributeLoc::Return, NoUndef);
         }
-        if ret_type.map(BasicTypeEnum::is_pointer_type) != Some(true) {
+        if !ret_type.is_some_and(BasicTypeEnum::is_pointer_type) {
             for nth in 0..function.count_params() {
                 self.add_enum_attribute(function, AttributeLoc::Param(nth), NoCapture);
             }

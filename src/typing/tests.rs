@@ -6,10 +6,13 @@ use itertools::{Either, Itertools};
 
 pub fn parse_expr(source: &str) -> Option<Expression> {
     let tokens: Vec<_> = lex(source).collect();
-    let (tokens, errors): (Vec<_>, Vec<_>) = tokens.into_iter().partition_map(|t| match t {
-        Ok(token) => Either::Left(token),
-        Err(error) => Either::Right(error),
-    });
+    let (tokens, errors): (Vec<_>, Vec<_>) =
+        tokens
+            .into_iter()
+            .partition_map(|(token, span)| match token {
+                Ok(token) => Either::Left(token),
+                Err(()) => Either::Right(span),
+            });
     if !errors.is_empty() {
         return None;
     };

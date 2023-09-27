@@ -38,12 +38,12 @@ mod token {
     }
 }
 
+use logos::Span;
 pub use token::Token;
 
-/// Lexes a `&str` into an iterator of [`Result<Token, usize>`](Token).
+/// Lexes a `&str` into an iterator of [`(Result<Token, ()>, Span)`](Token).
 ///
-/// An `Ok` value is a lexed token, and an `Err` value is the index of a character that could not be
-/// lexed into a token.
+/// Yields pairs of a token or non-token, and the span at which they occurred in `source`.
 ///
 /// Whitespace and comments are ignored.
 ///
@@ -52,19 +52,29 @@ pub use token::Token;
 /// ```
 /// # use Token::*;
 /// #
-/// assert!(lex(r"//comment").eq([]));
+/// assert_eq!(lex(r"//comment").collect::<Vec<_>>(), []);
 ///
-/// assert!(lex(r"a => a").eq([Ok(Identifier("a")), Ok(DoubleArrow), Ok(Identifier("a"))]));
+/// assert_eq!(
+///     lex(r"a => a").collect::<Vec<_>>(),
+///     [
+///         (Ok(Identifier("a")), 0..1),
+///         (Ok(DoubleArrow), 2..4),
+///         (Ok(Identifier("a")), 5..6)
+///     ]
+/// );
 ///
-/// assert!(lex(r"Type % -> Type").eq([Ok(Type), Err(5), Ok(SingleArrow), Ok(Type)]));
+/// assert_eq!(
+///     lex(r"Type % -> Type").collect::<Vec<_>>(),
+///     [
+///         (Ok(Type), 0..4),
+///         (Err(()), 5..6),
+///         (Ok(SingleArrow), 7..9),
+///         (Ok(Type), 10..14),
+///     ]
+/// );
 /// ```
-pub fn lex(src: &str) -> impl Iterator<Item = Result<Token, usize>> {
-    <Token as logos::Logos>::lexer(src)
-        .spanned()
-        .map(|(token, span)| match token {
-            Ok(token) => Ok(token),
-            Err(()) => Err(span.start),
-        })
+pub fn lex(source: &str) -> impl Iterator<Item = (Result<Token, ()>, Span)> {
+    <Token as logos::Logos>::lexer(source).spanned()
 }
 
 #[cfg(test)]
@@ -76,10 +86,25 @@ mod tests {
     fn doctest() {
         use Token::*;
 
-        assert!(lex(r"//comment").eq([]));
+        assert_eq!(lex(r"//comment").collect::<Vec<_>>(), []);
 
-        assert!(lex(r"a => a").eq([Ok(Identifier("a")), Ok(DoubleArrow), Ok(Identifier("a"))]));
+        assert_eq!(
+            lex(r"a => a").collect::<Vec<_>>(),
+            [
+                (Ok(Identifier("a")), 0..1),
+                (Ok(DoubleArrow), 2..4),
+                (Ok(Identifier("a")), 5..6)
+            ]
+        );
 
-        assert!(lex(r"Type % -> Type").eq([Ok(Type), Err(5), Ok(SingleArrow), Ok(Type)]));
+        assert_eq!(
+            lex(r"Type % -> Type").collect::<Vec<_>>(),
+            [
+                (Ok(Type), 0..4),
+                (Err(()), 5..6),
+                (Ok(SingleArrow), 7..9),
+                (Ok(Type), 10..14),
+            ]
+        );
     }
 }

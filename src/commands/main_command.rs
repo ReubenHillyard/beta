@@ -1,7 +1,7 @@
 //! Type and functions for providing the main command.
 
-use crate::commands::OptLevel;
 use crate::commands::Arguments;
+use crate::commands::OptLevel;
 use crate::ir_gen::values::captures::{Captures, Environment};
 use crate::ir_gen::values::tags::structure::Structure;
 use crate::ir_gen::values::tags::tag;
@@ -17,6 +17,9 @@ use crate::typing::environments::Definitions;
 use crate::typing::evaluation::Evaluate;
 use crate::typing::expression::TypedExpression;
 use crate::typing::read_back::read_back_with_ctx_len;
+use crate::utility::lines_and_offsets;
+use annotate_snippets::display_list::{DisplayList, FormatOptions};
+use annotate_snippets::snippet::{Annotation, AnnotationType, Slice, Snippet, SourceAnnotation};
 use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::passes::PassManager;
@@ -36,10 +39,7 @@ impl MainArguments {
     /// Creates `self` from the command line arguments by reading source from the input path.
     pub fn new(args: Arguments) -> Result<MainArguments, String> {
         let source = read_to_string(&args.path).map_err(|e| e.to_string())?;
-        Ok(MainArguments {
-            source,
-            args,
-        })
+        Ok(MainArguments { source, args })
     }
 
     /// Runs the compiler on the given arguments.
@@ -74,12 +74,69 @@ impl MainArguments {
 
     fn lex(&self) -> Result<Vec<Token>, String> {
         let tokens: Vec<_> = lex(&self.source).collect();
-        let (tokens, errors): (Vec<_>, Vec<_>) = tokens.into_iter().partition_map(|t| match t {
-            Ok(token) => Either::Left(token),
-            Err(error) => Either::Right(error),
-        });
+        let (tokens, errors): (Vec<_>, Vec<_>) =
+            tokens
+                .into_iter()
+                .partition_map(|(token, span)| match token {
+                    Ok(token) => Either::Left(token),
+                    Err(()) => Either::Right(span),
+                });
         if !errors.is_empty() {
-            return Err(format!("lexing errors: {:#?}", errors))
+            let slices = {
+                let mut errors = errors.into_iter().peekable();
+                let origin = Some(self.args.path.to_str().unwrap());
+                let fold = false;
+                lines_and_offsets(&self.source)
+                    .enumerate()
+                    .filter_map(|(line_number, (source, line_offset))| {
+                        let line_start = line_number + 1;
+                        while errors.peek().is_some_and(|err| err.start < line_offset) {
+                            errors.next();
+                        }
+                        errors
+                            .peek()
+                            .iter()
+                            .filter_map(|err| {
+                                if err.start < line_offset + source.len() {
+                                    let annotation = SourceAnnotation {
+                                        range: (err.start - line_offset, err.end - line_offset),
+                                        label: "beginning here",
+                                        annotation_type: AnnotationType::Error,
+                                    };
+                                    Some(Slice {
+                                        source,
+                                        line_start,
+                                        origin,
+                                        annotations: vec![annotation],
+                                        fold,
+                                    })
+                                } else {
+                                    None
+                                }
+                            })
+                            .next()
+                    })
+                    .collect()
+            };
+            let snippet = Snippet {
+                title: Some(Annotation {
+                    id: None,
+                    label: Some("unrecognized token(s)"),
+                    annotation_type: AnnotationType::Error,
+                }),
+                footer: vec![Annotation {
+                    id: None,
+                    label: Some("aborting due to previous error(s)"),
+                    annotation_type: AnnotationType::Error,
+                }],
+                slices,
+                opt: FormatOptions {
+                    color: true,
+                    anonymized_line_numbers: false,
+                    margin: None,
+                },
+            };
+            return Err(DisplayList::from(snippet).to_string());
         }
         verbose_println!(self.args, "lexed file");
         Ok(tokens)
@@ -114,7 +171,9 @@ impl MainArguments {
                 }
             };
             if !defs.all_metas_defined() {
-                return Err(format!("could not deduce values for some meta-variables in `{name}`"));
+                return Err(format!(
+                    "could not deduce values for some meta-variables in `{name}`"
+                ));
             }
             let value = typed_expr.evaluate(defs.with_empty_env());
             let type_expr = read_back_with_ctx_len(&defs, 0, value.get_type());
@@ -203,10 +262,7 @@ impl MainArguments {
             .compiler_builder
             .build_store(zero_i32_ptr, u32_type.const_zero());
 
-        let nat_main = main_fn
-            .compiler_builder
-            .compiler
-            .get_global_ptr("nat_main");
+        let nat_main = main_fn.compiler_builder.compiler.get_global_ptr("nat_main");
         let Some(nat_main) = nat_main else {
             return Err("missing `nat_main`".to_string())
         };
@@ -318,7 +374,7 @@ impl MainArguments {
         };
         let status = clang_output.status;
         if !status.success() {
-            return Err(format!("clang-16 failed with exit status {status}"))
+            return Err(format!("clang-16 failed with exit status {status}"));
         }
         verbose_println!(self.args, "compiled to machine code");
 
