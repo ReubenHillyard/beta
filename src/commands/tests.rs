@@ -26,8 +26,8 @@ pub fn test_main() {
             emit_llvm: None,
         },
     }
-        .run()
-        .unwrap();
+    .run()
+    .unwrap();
 
     let program_output = Command::new(output).output().expect("program not found");
     assert_eq!(program_output.status.code(), Some(27), "program failed");

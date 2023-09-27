@@ -38,8 +38,8 @@ impl<'ctx> Compiler<'ctx> {
         _b: B,
         f: F,
     ) -> FnValue<'ctx, F>
-        where
-            B: HasAssociatedFn<F>,
+    where
+        B: HasAssociatedFn<F>,
     {
         self.get_function_ptr(B::get_name_of(f))
             .unwrap()

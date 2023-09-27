@@ -20,8 +20,9 @@ pub trait HasAssociatedFn<F: Function>: Object {
 ///
 /// Built-in types must have associated special members: size, clone, and destroy functions.
 pub trait BuiltinType:
-HasAssociatedFn<tag::SizeFn> + HasAssociatedFn<tag::CloneFn> + HasAssociatedFn<tag::DestroyFn>
-{}
+    HasAssociatedFn<tag::SizeFn> + HasAssociatedFn<tag::CloneFn> + HasAssociatedFn<tag::DestroyFn>
+{
+}
 
 impl HasAssociatedFn<tag::SizeFn> for tag::Universe {
     const NAMED: &'static str = "universe_size";

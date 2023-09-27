@@ -131,7 +131,7 @@ impl CaptureOffsetIndexable for Partial {
     type Offset = Read;
 }
 
-pub trait CaptureIndexable: CaptureOffsetIndexable<Offset=Read> {
+pub trait CaptureIndexable: CaptureOffsetIndexable<Offset = Read> {
     type Elem: Flow;
 }
 

@@ -78,7 +78,7 @@ impl<'ctx> CompilerWithBuilder<'ctx, '_> {
                         ptr
                     }
                 }
-                    .as_ptr_to(tag::Pi);
+                .as_ptr_to(tag::Pi);
                 let dest_captures_ptr = self.build_store_pi_static_part(
                     dest_pi_ptr,
                     raw_function,

@@ -181,8 +181,8 @@ mod detail {
                     neu = func;
                     match arg.force(defs) {
                         Value::Neutral(Neutral::Principal(Principal::Variable(
-                                                              VVariable::Local(level),
-                                                          ))) => args.push(level),
+                            VVariable::Local(level),
+                        ))) => args.push(level),
                         arg => return Err(TypeError::NonLevelInSpine(arg)),
                     }
                 }

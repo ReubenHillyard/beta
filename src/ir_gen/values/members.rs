@@ -44,14 +44,14 @@ impl<'ctx> CompilerWithBuilder<'ctx, '_> {
         &mut self,
         ptr: PtrValue<'ctx, F, S>,
     ) -> PtrValue<'ctx, F, tag::Captures>
-        where
-            tag::Captures: FieldOf<S, Ty=tag::Captures>,
+    where
+        tag::Captures: FieldOf<S, Ty = tag::Captures>,
     {
         self.build_get_field_ptr(ptr, tag::Captures)
     }
 
     /// Builds a load of a given field of a given pointer to a structure.
-    pub fn build_load_field<S: Structure, FieldTy: LoadStore, Field: FieldOf<S, Ty=FieldTy>>(
+    pub fn build_load_field<S: Structure, FieldTy: LoadStore, Field: FieldOf<S, Ty = FieldTy>>(
         &mut self,
         ptr: PtrValue<'ctx, Read, S>,
         field: Field,
@@ -63,7 +63,7 @@ impl<'ctx> CompilerWithBuilder<'ctx, '_> {
     /// Builds a store of a given field of a given pointer to a structure.
     ///
     /// Requires the specified field is only stored to by this one call.
-    pub fn build_store_field<S: Structure, FieldTy: LoadStore, Field: FieldOf<S, Ty=FieldTy>>(
+    pub fn build_store_field<S: Structure, FieldTy: LoadStore, Field: FieldOf<S, Ty = FieldTy>>(
         &mut self,
         ptr: PtrValue<'ctx, Write, S>,
         field: Field,

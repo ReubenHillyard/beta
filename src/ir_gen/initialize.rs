@@ -26,12 +26,12 @@ impl<'ctx> Compiler<'ctx> {
     /// [`tag::CapturesCloneFn`].
     /// * Destroy function delegates to a field [`tag::CapturesDestroyFn`].
     fn add_delegating_builtin<B: BuiltinType>(&mut self, b: B)
-        where
-            B: Structure,
-            tag::TotalSize: FieldOf<B, Ty=tag::Usize>,
-            tag::CapturesCloneFn: FieldOf<B, Ty=tag::CapturesCloneFn>,
-            tag::CapturesDestroyFn: FieldOf<B, Ty=tag::CapturesDestroyFn>,
-            tag::Captures: FieldOf<B, Ty=tag::Captures>,
+    where
+        B: Structure,
+        tag::TotalSize: FieldOf<B, Ty = tag::Usize>,
+        tag::CapturesCloneFn: FieldOf<B, Ty = tag::CapturesCloneFn>,
+        tag::CapturesDestroyFn: FieldOf<B, Ty = tag::CapturesDestroyFn>,
+        tag::Captures: FieldOf<B, Ty = tag::Captures>,
     {
         self.add_delegating_size_fn(b);
         self.add_delegating_clone_fn(b);
@@ -45,9 +45,9 @@ impl<'ctx> Compiler<'ctx> {
     /// Requires `b` is the tag of a built-in type whose size function delegates to a field
     /// [`tag::TotalSize`].
     fn add_delegating_size_fn<B: BuiltinType>(&mut self, b: B)
-        where
-            B: Structure,
-            tag::TotalSize: FieldOf<B, Ty=tag::Usize>,
+    where
+        B: Structure,
+        tag::TotalSize: FieldOf<B, Ty = tag::Usize>,
     {
         let mut function = self.add_function(tag::SizeFn, B::get_name_of(tag::SizeFn));
         let arg_ptr = function.args.arg_ptr.as_ptr_to(b);
@@ -62,10 +62,10 @@ impl<'ctx> Compiler<'ctx> {
     /// Requires `b` is the tag of a built-in type whose clone function copies the static part and
     /// then delegates to a field [`tag::CapturesCloneFn`].
     fn add_delegating_clone_fn<B: BuiltinType>(&mut self, b: B)
-        where
-            B: Structure,
-            tag::CapturesCloneFn: FieldOf<B, Ty=tag::CapturesCloneFn>,
-            tag::Captures: FieldOf<B, Ty=tag::Captures>,
+    where
+        B: Structure,
+        tag::CapturesCloneFn: FieldOf<B, Ty = tag::CapturesCloneFn>,
+        tag::Captures: FieldOf<B, Ty = tag::Captures>,
     {
         let mut function = self.add_function(tag::CloneFn, B::get_name_of(tag::CloneFn));
         let src_ptr = function.args.src_ptr.as_ptr_to(b);
@@ -97,10 +97,10 @@ impl<'ctx> Compiler<'ctx> {
     /// Requires `b` is the tag of a built-in type whose destroy function delegates to a field
     /// [`tag::CapturesDestroyFn`].
     fn add_delegating_destroy_fn<B: BuiltinType>(&mut self, b: B)
-        where
-            B: Structure,
-            tag::CapturesDestroyFn: FieldOf<B, Ty=tag::CapturesDestroyFn>,
-            tag::Captures: FieldOf<B, Ty=tag::Captures>,
+    where
+        B: Structure,
+        tag::CapturesDestroyFn: FieldOf<B, Ty = tag::CapturesDestroyFn>,
+        tag::Captures: FieldOf<B, Ty = tag::Captures>,
     {
         let mut function = self.add_function(tag::DestroyFn, B::get_name_of(tag::DestroyFn));
         let arg_ptr = function.args.arg_ptr.as_ptr_to(b);
