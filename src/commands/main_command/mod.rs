@@ -7,8 +7,6 @@ use crate::ir_gen::values::tags::structure::Structure;
 use crate::ir_gen::values::tags::tag;
 use crate::ir_gen::values::Location;
 use crate::ir_gen::Compiler;
-use crate::lexer::{lex, Token};
-use crate::parser;
 use crate::parser::cst;
 use crate::typing::abstraction::abstract_file;
 use crate::typing::ast::File;
@@ -17,17 +15,17 @@ use crate::typing::environments::Definitions;
 use crate::typing::evaluation::Evaluate;
 use crate::typing::expression::TypedExpression;
 use crate::typing::read_back::read_back_with_ctx_len;
-use crate::utility::lines_and_offsets;
-use annotate_snippets::display_list::{DisplayList, FormatOptions};
-use annotate_snippets::snippet::{Annotation, AnnotationType, Slice, Snippet, SourceAnnotation};
+use annotate_snippets::snippet::{Slice, SourceAnnotation};
 use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::passes::PassManager;
-use itertools::{Either, Itertools};
 use std::ffi::OsStr;
 use std::fs::read_to_string;
 use std::path::PathBuf;
 use std::process::Command;
+
+mod lex;
+mod parse;
 
 /// The arguments to [`main`](crate::main).
 pub struct MainArguments {
@@ -72,85 +70,6 @@ impl MainArguments {
         Ok(())
     }
 
-    fn lex(&self) -> Result<Vec<Token>, String> {
-        let tokens: Vec<_> = lex(&self.source).collect();
-        let (tokens, errors): (Vec<_>, Vec<_>) =
-            tokens
-                .into_iter()
-                .partition_map(|(token, span)| match token {
-                    Ok(token) => Either::Left(token),
-                    Err(()) => Either::Right(span),
-                });
-        if !errors.is_empty() {
-            let slices = {
-                let mut errors = errors.into_iter().peekable();
-                let origin = Some(self.args.path.to_str().unwrap());
-                let fold = false;
-                lines_and_offsets(&self.source)
-                    .enumerate()
-                    .filter_map(|(line_number, (source, line_offset))| {
-                        let line_start = line_number + 1;
-                        while errors.peek().is_some_and(|err| err.start < line_offset) {
-                            errors.next();
-                        }
-                        errors
-                            .peek()
-                            .iter()
-                            .filter_map(|err| {
-                                if err.start < line_offset + source.len() {
-                                    let annotation = SourceAnnotation {
-                                        range: (err.start - line_offset, err.end - line_offset),
-                                        label: "beginning here",
-                                        annotation_type: AnnotationType::Error,
-                                    };
-                                    Some(Slice {
-                                        source,
-                                        line_start,
-                                        origin,
-                                        annotations: vec![annotation],
-                                        fold,
-                                    })
-                                } else {
-                                    None
-                                }
-                            })
-                            .next()
-                    })
-                    .collect()
-            };
-            let snippet = Snippet {
-                title: Some(Annotation {
-                    id: None,
-                    label: Some("unrecognized token(s)"),
-                    annotation_type: AnnotationType::Error,
-                }),
-                footer: vec![Annotation {
-                    id: None,
-                    label: Some("aborting due to previous error(s)"),
-                    annotation_type: AnnotationType::Error,
-                }],
-                slices,
-                opt: FormatOptions {
-                    color: true,
-                    anonymized_line_numbers: false,
-                    margin: None,
-                },
-            };
-            return Err(DisplayList::from(snippet).to_string());
-        }
-        verbose_println!(self.args, "lexed file");
-        Ok(tokens)
-    }
-    fn parse<'a>(&self, tokens: &'a [Token<'a>]) -> Result<cst::File<'a>, String> {
-        let file = match parser::parse_as_file(tokens) {
-            Ok(file) => file,
-            Err(error) => {
-                return Err(format!("parse error: {}", error));
-            }
-        };
-        verbose_println!(self.args, "parsed file");
-        Ok(file)
-    }
     fn abstract_file<'a>(&self, file: &cst::File<'a>) -> Result<File<'a>, String> {
         let file = match abstract_file(file) {
             Ok(file) => file,
@@ -389,5 +308,20 @@ impl MainArguments {
     }
     fn verify_module(&self, module: &Module) {
         module.verify().unwrap()
+    }
+
+    fn make_slice<'a>(
+        &'a self,
+        source: &'a str,
+        line_num: usize,
+        annotations: Vec<SourceAnnotation<'a>>,
+    ) -> Slice<'a> {
+        Slice {
+            source,
+            line_start: line_num + 1,
+            origin: Some(self.args.path.to_str().unwrap()),
+            annotations,
+            fold: false,
+        }
     }
 }

@@ -2,6 +2,7 @@
 
 use crate::lexer::Token;
 use crate::parser::cst::*;
+use peg::error::{ExpectedSet, ParseError};
 
 /// Types for concrete syntax tree elements.
 pub mod cst {
@@ -173,15 +174,43 @@ mod grammar {
 }
 
 /// Parses a slice of [`Token`]s into an [`Expression`] or fails.
-pub fn parse_as_expression<'a>(
-    tokens: &[Token<'a>],
-) -> Result<Expression<'a>, peg::error::ParseError<usize>> {
+pub fn parse_as_expression<'a>(tokens: &[Token<'a>]) -> Result<Expression<'a>, ParseError<usize>> {
     grammar::parser::expression(tokens)
 }
 
 /// Parses a slice of [`Token`]s into an [`File`] or fails.
-pub fn parse_as_file<'a>(
-    tokens: &'a [Token<'a>],
-) -> Result<File<'a>, peg::error::ParseError<usize>> {
+pub fn parse_as_file<'a>(tokens: &[Token<'a>]) -> Result<File<'a>, ParseError<usize>> {
     grammar::parser::file(tokens)
+}
+
+/// The names of the expected tokens as used in error messages.
+pub(crate) fn token_names(expected_set: &ExpectedSet) -> impl Iterator<Item = &'static str> + '_ {
+    expected_set.tokens().map(token_name)
+}
+
+/// Gets the name of a token from the name given by [`peg`].
+fn token_name(name: &str) -> &'static str {
+    if name == "EOF" {
+        return "EOF";
+    }
+    let core_name = name
+        .strip_prefix("[Token :: ")
+        .and_then(|name| name.split_once(|c: char| !c.is_ascii_alphanumeric()))
+        .map(|(name, _)| name);
+    match core_name {
+        Some("Underscore") => Token::UNDERSCORE_NAME,
+        Some("As") => Token::AS_NAME,
+        Some("Define") => Token::DEFINE_NAME,
+        Some("Type") => Token::TYPE_NAME,
+        Some("Identifier") => Token::IDENTIFIER_NAME,
+        Some("LParen") => Token::L_PAREN_NAME,
+        Some("RParen") => Token::R_PAREN_NAME,
+        Some("Equals") => Token::EQUALS_NAME,
+        Some("Comma") => Token::COMMA_NAME,
+        Some("Colon") => Token::COLON_NAME,
+        Some("Semicolon") => Token::SEMICOLON_NAME,
+        Some("SingleArrow") => Token::SINGLE_ARROW_NAME,
+        Some("DoubleArrow") => Token::DOUBLE_ARROW_NAME,
+        _ => panic!("unrecognised token name `{name:?}`"),
+    }
 }

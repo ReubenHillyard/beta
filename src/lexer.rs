@@ -108,3 +108,38 @@ mod tests {
         );
     }
 }
+
+impl Token<'_> {
+    pub const UNDERSCORE_NAME: &'static str = "`_`";
+    pub const AS_NAME: &'static str = "`as`";
+    pub const DEFINE_NAME: &'static str = "`def`";
+    pub const TYPE_NAME: &'static str = "`Type`";
+    pub const IDENTIFIER_NAME: &'static str = "identifier";
+    pub const L_PAREN_NAME: &'static str = "`(`";
+    pub const R_PAREN_NAME: &'static str = "`)`";
+    pub const EQUALS_NAME: &'static str = "`=`";
+    pub const COMMA_NAME: &'static str = "`,`";
+    pub const COLON_NAME: &'static str = "`:`";
+    pub const SEMICOLON_NAME: &'static str = "`;`";
+    pub const SINGLE_ARROW_NAME: &'static str = "`->`";
+    pub const DOUBLE_ARROW_NAME: &'static str = "`=>`";
+
+    /// The name of the token as used in error messages.
+    pub fn name(self) -> &'static str {
+        match self {
+            Token::Underscore => Token::UNDERSCORE_NAME,
+            Token::As => Token::AS_NAME,
+            Token::Define => Token::DEFINE_NAME,
+            Token::Type => Token::TYPE_NAME,
+            Token::Identifier(_) => Token::IDENTIFIER_NAME,
+            Token::LParen => Token::L_PAREN_NAME,
+            Token::RParen => Token::R_PAREN_NAME,
+            Token::Equals => Token::EQUALS_NAME,
+            Token::Comma => Token::COMMA_NAME,
+            Token::Colon => Token::COLON_NAME,
+            Token::Semicolon => Token::SEMICOLON_NAME,
+            Token::SingleArrow => Token::SINGLE_ARROW_NAME,
+            Token::DoubleArrow => Token::DOUBLE_ARROW_NAME,
+        }
+    }
+}
