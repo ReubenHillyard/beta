@@ -9,7 +9,7 @@ use std::fmt;
 use std::fmt::{Display, Formatter};
 
 /// An expression elaborated to the most convenient form for evaluation.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CoreExpression<'a> {
     MetaVariable(MetaVar),
     Variable(EVariable<'a>),

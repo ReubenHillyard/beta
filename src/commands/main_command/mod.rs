@@ -7,13 +7,12 @@ use crate::ir_gen::values::tags::structure::Structure;
 use crate::ir_gen::values::tags::tag;
 use crate::ir_gen::values::Location;
 use crate::ir_gen::Compiler;
-use crate::parser::cst;
-use crate::typing::abstraction::abstract_file;
+use crate::parser::parse_expr;
 use crate::typing::ast::File;
-use crate::typing::checking::synth_type;
+use crate::typing::checking::{check_is_type, synth_type};
 use crate::typing::environments::Definitions;
 use crate::typing::evaluation::Evaluate;
-use crate::typing::expression::TypedExpression;
+use crate::typing::expression::{TypeExpression, TypedExpression};
 use crate::typing::read_back::read_back_with_ctx_len;
 use annotate_snippets::snippet::{Slice, SourceAnnotation};
 use inkwell::context::Context;
@@ -24,6 +23,7 @@ use std::fs::read_to_string;
 use std::path::PathBuf;
 use std::process::Command;
 
+mod abstract_file;
 mod lex;
 mod parse;
 
@@ -34,6 +34,13 @@ pub struct MainArguments {
 }
 
 impl MainArguments {
+    const MAIN_NAME: &'static str = "nat_main";
+    fn main_type() -> TypeExpression<'static> {
+        let mut defs = Definitions::default();
+        let expr = parse_expr("(A : Type) -> (A -> A) -> A -> A").unwrap();
+        check_is_type(&mut defs.with_empty_ctx(), &expr).unwrap()
+    }
+
     /// Creates `self` from the command line arguments by reading source from the input path.
     pub fn new(args: Arguments) -> Result<MainArguments, String> {
         let source = read_to_string(&args.path).map_err(|e| e.to_string())?;
@@ -55,7 +62,7 @@ impl MainArguments {
         let context = Context::create();
         let mut compiler = self.compile(&context, &file, &mut defs);
 
-        self.add_main(&mut compiler)?;
+        self.add_main(&mut compiler);
 
         self.emit_llvm(&compiler.module, &self.args.emit_un_opt_llvm)?;
 
@@ -70,17 +77,8 @@ impl MainArguments {
         Ok(())
     }
 
-    fn abstract_file<'a>(&self, file: &cst::File<'a>) -> Result<File<'a>, String> {
-        let file = match abstract_file(file) {
-            Ok(file) => file,
-            Err(errors) => {
-                return Err(format!("name errors: {:#?}", errors));
-            }
-        };
-        verbose_println!(self.args, "abstracted file");
-        Ok(file)
-    }
     fn type_check<'a>(&self, file: &File<'a>) -> Result<Definitions<'a>, String> {
+        let mut main_found = false;
         let mut defs = Definitions::default();
         for (name, expr) in &file.globals {
             let typed_expr = match synth_type(&mut defs.with_empty_ctx(), expr) {
@@ -97,12 +95,25 @@ impl MainArguments {
             let value = typed_expr.evaluate(defs.with_empty_env());
             let type_expr = read_back_with_ctx_len(&defs, 0, value.get_type());
             let value_expr = read_back_with_ctx_len(&defs, 0, value.get_term());
+            if *name == MainArguments::MAIN_NAME {
+                let main_type = MainArguments::main_type();
+                if type_expr != main_type {
+                    return Err(format!(
+                        "`{}` defined with type `{type_expr}` but must have type `{main_type}`",
+                        MainArguments::MAIN_NAME
+                    ));
+                }
+                main_found = true;
+            }
             verbose_println!(self.args, "{name} = {} as {}", value_expr, type_expr);
             let type_ = type_expr.evaluate(defs.with_empty_env());
             let value =
                 TypedExpression::create_typed(type_, value_expr).evaluate(defs.with_empty_env());
             defs.define_global(name, value);
             defs.reset_metas();
+        }
+        if !main_found {
+            return Err(format!("`{}` not found", MainArguments::MAIN_NAME));
         }
         verbose_println!(self.args, "type-checked file");
         Ok(defs)
@@ -122,7 +133,7 @@ impl MainArguments {
         verbose_println!(self.args, "compiled file to LLVM IR");
         compiler
     }
-    fn add_main(&self, compiler: &mut Compiler) -> Result<(), String> {
+    fn add_main(&self, compiler: &mut Compiler) {
         let u32_type = compiler.i32_type(); // LLVM IR has i32 = u32
         let u32_size = compiler.size_of_int_type(u32_type);
         let (size_fn, clone_fn) = compiler.add_trivial_type_special_members(u32_size);
@@ -181,10 +192,11 @@ impl MainArguments {
             .compiler_builder
             .build_store(zero_i32_ptr, u32_type.const_zero());
 
-        let nat_main = main_fn.compiler_builder.compiler.get_global_ptr("nat_main");
-        let Some(nat_main) = nat_main else {
-            return Err("missing `nat_main`".to_string())
-        };
+        let nat_main = main_fn
+            .compiler_builder
+            .compiler
+            .get_global_ptr(MainArguments::MAIN_NAME)
+            .unwrap();
         let nat_main = nat_main.as_ptr_to(tag::Pi);
 
         let nat_main_i32 = main_fn
@@ -229,8 +241,6 @@ impl MainArguments {
 
         self.verify_module(&compiler.module);
         verbose_println!(self.args, "compiled main to LLVM IR");
-
-        Ok(())
     }
     fn optimize(&self, module: &Module) {
         let (common_limit, rare_limit) = match self.args.opt_level {
@@ -321,7 +331,7 @@ impl MainArguments {
             line_start: line_num + 1,
             origin: Some(self.args.path.to_str().unwrap()),
             annotations,
-            fold: false,
+            fold: true,
         }
     }
 }

@@ -148,7 +148,6 @@ fn abstract_expression<'a>(
 }
 
 /// Converts the concrete syntax of an expression to abstract syntax, in an empty context.
-#[cfg(test)]
 pub(crate) fn abstract_expression_empty<'a>(
     expr: &cst::Expression<'a>,
 ) -> Result<Expression<'a>, Vec<NameError<'a>>> {

@@ -134,16 +134,7 @@ fn format_snippets(snippets: Vec<Snippet>) -> String {
         }
         Some(footer_label) => Some(footer_label.as_str()),
     };
-    let footer = footer_label.map(|label| Snippet {
-        title: Some(Annotation {
-            id: None,
-            label: Some(label),
-            annotation_type: AnnotationType::Error,
-        }),
-        footer: vec![],
-        slices: vec![],
-        opt: FORMAT_OPTIONS,
-    });
+    let footer = footer_label.map(|label| make_error_snippet(label, vec![]));
     let body = snippets
         .into_iter()
         .chain(footer.into_iter())

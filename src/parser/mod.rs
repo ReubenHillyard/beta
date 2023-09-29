@@ -1,7 +1,10 @@
 //! Functions for parsing [`Token`]s into concrete syntax.
 
-use crate::lexer::Token;
+use crate::lexer::{lex, Token};
 use crate::parser::cst::*;
+use crate::typing::abstraction::abstract_expression_empty;
+use crate::typing::ast;
+use itertools::{Either, Itertools};
 use peg::error::{ExpectedSet, ParseError};
 
 /// Types for concrete syntax tree elements.
@@ -214,3 +217,25 @@ fn token_name(name: &str) -> &'static str {
         _ => panic!("unrecognised token name `{name:?}`"),
     }
 }
+
+/// Parses a string into an [`ast::Expression`].
+///
+/// To be used in tests, or when `source` denotes a known, valid expression.
+pub(crate) fn parse_expr(source: &str) -> Option<ast::Expression> {
+    let (tokens, errors): (Vec<_>, Vec<_>) =
+        lex(source).partition_map(|(token, span)| match token {
+            Ok(token) => Either::Left(token),
+            Err(()) => Either::Right(span),
+        });
+    if !errors.is_empty() {
+        return None;
+    };
+    parse_as_expression(&tokens)
+        .ok()
+        .as_ref()
+        .and_then(|v| abstract_expression_empty(v).ok())
+}
+
+#[cfg(test)]
+#[doc(hidden)]
+pub(crate) mod tests;

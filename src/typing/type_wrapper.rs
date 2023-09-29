@@ -34,7 +34,7 @@ impl<Ty: Term, Te: Term> Term for Typed<Ty, Te> {
 }
 
 /// A term known to be a type.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Type<Te: Term>(Te);
 
 impl<Te: Term + Display> Display for Type<Te> {
@@ -117,7 +117,7 @@ impl<'a> Type<Value<'a>> {
 }
 
 /// A term of a known type.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Typed<Ty: Term, Te: Term> {
     type_: Type<Ty>,
     term: Te,

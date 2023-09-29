@@ -1,8 +1,8 @@
 use crate::ir_gen::values::captures::_get_captures;
+use crate::parser::parse_expr;
 use crate::typing::checking::synth_type;
 use crate::typing::environments::Definitions;
 use crate::typing::expression::CoreExpression;
-use crate::typing::tests::parse_expr;
 
 #[test]
 fn test_captures() {
